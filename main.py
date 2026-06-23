@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 import csv
 import io
 import re
+import requests
+from pydantic import BaseModel
 from collections import defaultdict
 from datetime import datetime
 
