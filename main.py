@@ -243,3 +243,9 @@ async def analyze(file: UploadFile = File(...)):
         "sample_orders": parsed["orders"][:5],
         "sample_closed_trades": parsed["closed_trades"][:5]
     }
+@app.post("/analyze-url")
+async def analyze_url(payload: AnalyzeUrlRequest):
+    return {
+        "status": "ok",
+        "file_url": payload.file_url
+    }
