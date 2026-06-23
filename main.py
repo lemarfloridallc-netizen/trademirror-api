@@ -9,7 +9,9 @@ from collections import defaultdict
 from datetime import datetime
 
 app = FastAPI(title="TradeMirror API")
-
+class AnalyzeUrlRequest(BaseModel):
+    file_url: str
+    
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
