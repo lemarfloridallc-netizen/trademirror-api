@@ -245,7 +245,32 @@ async def analyze(file: UploadFile = File(...)):
     }
 @app.post("/analyze-url")
 async def analyze_url(payload: AnalyzeUrlRequest):
+    file_url = payload.file_url
+
+    if file_url.startswith("//"):
+        file_url = "https:" + file_url
+
+    response = requests.get(file_url, timeout=30)
+    response.raise_for_status()
+
+    text = response.content.decode("utf-8-sig", errors="ignore")
+
+    broker = detect_broker(text)
+
+    if broker == "IBKR":
+        parsed = parse_ibkr(text)
+        metrics = calculate_metrics(parsed)
+    else:
+        parsed = {"orders": [], "closed_trades": []}
+        metrics = {}
+
+    filename = file_url.split("/")[-1]
+
     return {
-        "status": "ok",
-        "file_url": payload.file_url
+        "status": "success",
+        "broker": broker,
+        "filename": filename,
+        "metrics": metrics,
+        "sample_orders": parsed["orders"][:5],
+        "sample_closed_trades": parsed["closed_trades"][:5]
     }
