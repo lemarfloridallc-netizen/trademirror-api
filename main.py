@@ -250,7 +250,11 @@ async def analyze_url(payload: AnalyzeUrlRequest):
     if file_url.startswith("//"):
         file_url = "https:" + file_url
 
-    response = requests.get(file_url, timeout=30)
+    response = requests.get(
+    file_url,
+    headers={"User-Agent": "Mozilla/5.0"},
+    timeout=30
+)
     response.raise_for_status()
 
     text = response.content.decode("utf-8-sig", errors="ignore")
