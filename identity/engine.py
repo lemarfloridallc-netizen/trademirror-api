@@ -2,18 +2,6 @@
 Mirror Identity Engine - Engine
 
 Main orchestration layer for the Mirror Identity Engine (MIE).
-
-Responsibilities:
-- Receive trading metrics
-- Detect behavioral signals
-- Calculate signal confidence
-- Calculate dimension scores
-- Match trader against official identity profiles
-- Calculate Edge Score
-- Calculate Confidence Score
-
-This module does not modify the public API by itself.
-main.py will call this later.
 """
 
 from typing import Dict, Any
@@ -23,6 +11,7 @@ from identity.signal_detector import detect_behavioral_signals
 from identity.confidence import calculate_detected_signal_confidences
 from identity.scoring import calculate_identity_scores, clamp_score
 from identity.matcher import match_identity_profiles, get_best_identity_match
+from identity.blueprint import generate_trading_blueprint
 
 
 def calculate_edge_score(scores: Dict[str, float]) -> float:
@@ -54,17 +43,27 @@ def calculate_confidence_score(metrics: Dict[str, Any]) -> float:
 
 
 def build_trading_identity(metrics: Dict[str, Any]) -> Dict[str, Any]:
+
+    # Detect behavioral signals
     signals = detect_behavioral_signals(metrics)
-    signal_confidences = calculate_detected_signal_confidences(signals, metrics)
+
+    # Confidence per signal
+    signal_confidences = calculate_detected_signal_confidences(
+        signals,
+        metrics
+    )
+
+    # Dimension scores
     scores = calculate_identity_scores(metrics)
 
+    # Match against official identities
     identity_matches = match_identity_profiles(scores)
     best_match = get_best_identity_match(scores)
 
     edge_score = calculate_edge_score(scores)
     confidence_score = calculate_confidence_score(metrics)
 
-    return {
+    identity_payload = {
         "identity_name": best_match["identity_name"],
         "identity_code": best_match["identity_code"],
         "identity_description": best_match["identity_description"],
@@ -82,3 +81,12 @@ def build_trading_identity(metrics: Dict[str, Any]) -> Dict[str, Any]:
 
         **scores,
     }
+
+    blueprint = generate_trading_blueprint(
+        identity_payload,
+        metrics
+    )
+
+    identity_payload["blueprint"] = blueprint
+
+    return identity_payload
