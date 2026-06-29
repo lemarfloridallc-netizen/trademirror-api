@@ -1,15 +1,26 @@
 """
 Mirror Identity Engine - Engine
 
-This file combines MIF scores into a first trader identity output.
+Main orchestration layer for the Mirror Identity Engine (MIE).
 
-It does not modify the existing API by itself.
-It only exposes a function that main.py can call later.
+Responsibilities:
+- Receive trading metrics
+- Detect behavioral signals
+- Calculate signal confidence
+- Calculate dimension scores
+- Calculate Edge Score
+- Calculate Confidence Score
+- Classify preliminary trader identity
+
+This module does not modify the public API by itself.
+main.py will call this later.
 """
 
 from typing import Dict, Any
 
 from identity.dimensions import DIMENSION_WEIGHTS
+from identity.signal_detector import detect_behavioral_signals
+from identity.confidence import calculate_detected_signal_confidences
 from identity.scoring import calculate_identity_scores, clamp_score
 
 
@@ -28,10 +39,13 @@ def calculate_edge_score(scores: Dict[str, float]) -> float:
 
 def calculate_confidence_score(metrics: Dict[str, Any]) -> float:
     """
-    Estimate how reliable the identity diagnosis is.
+    Estimate general diagnosis confidence.
 
-    v1 uses sample size only.
-    Later versions will include stability across reports.
+    v1 uses total sample size.
+    Future versions will include:
+    - number of reports
+    - stability across periods
+    - quality of trade-level data
     """
 
     total_trades = int(metrics.get("total_trades", 0) or 0)
@@ -54,10 +68,11 @@ def calculate_confidence_score(metrics: Dict[str, Any]) -> float:
 
 def classify_identity(scores: Dict[str, float]) -> Dict[str, str]:
     """
-    First simple identity classifier.
+    Preliminary MIE v1 identity classifier.
 
     This is intentionally conservative.
-    Later it will compare against TradingIdentityProfile archetype vectors.
+    Later versions will compare the score vector against
+    TradingIdentityProfile archetype targets.
     """
 
     discipline = scores.get("discipline_score", 0)
@@ -80,7 +95,7 @@ def classify_identity(scores: Dict[str, float]) -> Dict[str, str]:
             "identity_name": "Momentum Builder",
             "identity_description": (
                 "Tu ventaja aparece cuando encuentras activos con fuerza clara "
-                "y logras concentrar tu rendimiento en oportunidades superiores."
+                "y concentras tu rendimiento en oportunidades superiores."
             ),
         }
 
@@ -110,10 +125,14 @@ def build_trading_identity(metrics: Dict[str, Any]) -> Dict[str, Any]:
         metrics dictionary from the existing CSV analyzer.
 
     Output:
-        identity payload that Bubble can later store in TradingIdentity.
+        Structured identity payload that Bubble can later store
+        in TradingIdentity.
     """
 
+    signals = detect_behavioral_signals(metrics)
+    signal_confidences = calculate_detected_signal_confidences(signals, metrics)
     scores = calculate_identity_scores(metrics)
+
     edge_score = calculate_edge_score(scores)
     confidence_score = calculate_confidence_score(metrics)
     identity = classify_identity(scores)
@@ -125,6 +144,9 @@ def build_trading_identity(metrics: Dict[str, Any]) -> Dict[str, Any]:
         "confidence_score": confidence_score,
         "identity_version": 1,
         "reports_analyzed": 1,
+
+        "behavioral_signals": signals,
+        "signal_confidences": signal_confidences,
 
         **scores,
     }
