@@ -278,17 +278,4 @@ async def analyze_url(payload: AnalyzeUrlRequest):
         "sample_orders": parsed["orders"][:5],
         "sample_closed_trades": parsed["closed_trades"][:5]
     }
-@app.get("/test-mie")
-def test_mie():
-    from identity.engine import build_trading_identity
 
-    sample_metrics = {
-        "win_rate": 64.71,
-        "profit_factor": 1.34,
-        "total_trades": 17,
-        "gross_profit": 1816.86,
-        "gross_loss": 1359.58,
-        "net_pnl": 457.28,
-    }
-
-    return build_trading_identity(sample_metrics)
