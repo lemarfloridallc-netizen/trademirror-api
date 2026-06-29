@@ -10,6 +10,7 @@ All scores return a number from 0 to 100.
 from typing import Dict, Any
 
 from identity.signal_detector import detect_behavioral_signals
+from identity.signal_matrix import SIGNAL_MATRIX
 
 
 def clamp_score(value: float) -> float:
@@ -116,35 +117,11 @@ def calculate_signal_adjustments(metrics: Dict[str, Any]) -> Dict[str, float]:
         "evolution_score": 0,
     }
 
-    if "BS003" in signals:
-        adjustments["discipline_score"] += 5
-        adjustments["risk_management_score"] += 5
-        adjustments["psychology_score"] += 3
+    for signal_code in signals:
+        signal_weights = SIGNAL_MATRIX.get(signal_code, {})
 
-    if "BS006" in signals:
-        adjustments["execution_score"] += 5
-        adjustments["statistical_edge_score"] += 5
-        adjustments["consistency_score"] += 3
-
-    if "BS007" in signals:
-        adjustments["discipline_score"] -= 8
-        adjustments["psychology_score"] -= 6
-        adjustments["risk_management_score"] -= 5
-
-    if "BS008" in signals:
-        adjustments["selection_score"] += 5
-        adjustments["consistency_score"] += 3
-        adjustments["statistical_edge_score"] += 3
-
-    if "BS009" in signals:
-        adjustments["risk_management_score"] -= 10
-        adjustments["psychology_score"] -= 8
-        adjustments["discipline_score"] -= 5
-
-    if "BS010" in signals:
-        adjustments["risk_management_score"] += 5
-        adjustments["discipline_score"] += 3
-        adjustments["consistency_score"] += 3
+        for dimension, impact in signal_weights.items():
+            adjustments[dimension] += impact
 
     return adjustments
 
