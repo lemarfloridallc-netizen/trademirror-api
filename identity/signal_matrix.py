@@ -1,1 +1,136 @@
+"""
+Mirror Identity Engine - Signal Matrix
 
+This file defines how each behavioral signal impacts
+the 10 Mirror Identity Framework dimensions.
+
+Impact scale:
++10 = strong positive impact
++5 = moderate positive impact
+0 = no direct impact
+-5 = moderate negative impact
+-10 = strong negative impact
+"""
+
+SIGNAL_MATRIX = {
+    "BS001": {
+        "patience_score": 10,
+        "discipline_score": 8,
+        "risk_management_score": 3,
+        "selection_score": 5,
+        "consistency_score": 4,
+        "adaptability_score": 0,
+        "execution_score": 6,
+        "psychology_score": 4,
+        "statistical_edge_score": 3,
+        "evolution_score": 2,
+    },
+    "BS002": {
+        "patience_score": -10,
+        "discipline_score": -6,
+        "risk_management_score": -4,
+        "selection_score": -5,
+        "consistency_score": -4,
+        "adaptability_score": 0,
+        "execution_score": -8,
+        "psychology_score": -6,
+        "statistical_edge_score": -4,
+        "evolution_score": -2,
+    },
+    "BS003": {
+        "patience_score": 2,
+        "discipline_score": 10,
+        "risk_management_score": 10,
+        "selection_score": 2,
+        "consistency_score": 6,
+        "adaptability_score": 0,
+        "execution_score": 4,
+        "psychology_score": 6,
+        "statistical_edge_score": 5,
+        "evolution_score": 3,
+    },
+    "BS004": {
+        "patience_score": -3,
+        "discipline_score": -10,
+        "risk_management_score": -10,
+        "selection_score": -3,
+        "consistency_score": -6,
+        "adaptability_score": 0,
+        "execution_score": -5,
+        "psychology_score": -10,
+        "statistical_edge_score": -6,
+        "evolution_score": -4,
+    },
+    "BS005": {
+        "patience_score": -2,
+        "discipline_score": -5,
+        "risk_management_score": 1,
+        "selection_score": 0,
+        "consistency_score": -3,
+        "adaptability_score": 0,
+        "execution_score": -7,
+        "psychology_score": -4,
+        "statistical_edge_score": -6,
+        "evolution_score": -2,
+    },
+    "BS006": {
+        "patience_score": 4,
+        "discipline_score": 5,
+        "risk_management_score": 2,
+        "selection_score": 3,
+        "consistency_score": 6,
+        "adaptability_score": 0,
+        "execution_score": 8,
+        "psychology_score": 4,
+        "statistical_edge_score": 8,
+        "evolution_score": 3,
+    },
+    "BS007": {
+        "patience_score": -6,
+        "discipline_score": -9,
+        "risk_management_score": -8,
+        "selection_score": -5,
+        "consistency_score": -7,
+        "adaptability_score": -2,
+        "execution_score": -5,
+        "psychology_score": -9,
+        "statistical_edge_score": -6,
+        "evolution_score": -5,
+    },
+    "BS008": {
+        "patience_score": 3,
+        "discipline_score": 4,
+        "risk_management_score": 2,
+        "selection_score": 8,
+        "consistency_score": 6,
+        "adaptability_score": 2,
+        "execution_score": 4,
+        "psychology_score": 3,
+        "statistical_edge_score": 6,
+        "evolution_score": 4,
+    },
+    "BS009": {
+        "patience_score": -4,
+        "discipline_score": -9,
+        "risk_management_score": -10,
+        "selection_score": -3,
+        "consistency_score": -7,
+        "adaptability_score": -2,
+        "execution_score": -4,
+        "psychology_score": -10,
+        "statistical_edge_score": -6,
+        "evolution_score": -5,
+    },
+    "BS010": {
+        "patience_score": 2,
+        "discipline_score": 8,
+        "risk_management_score": 9,
+        "selection_score": 2,
+        "consistency_score": 8,
+        "adaptability_score": 0,
+        "execution_score": 3,
+        "psychology_score": 5,
+        "statistical_edge_score": 4,
+        "evolution_score": 3,
+    },
+}
