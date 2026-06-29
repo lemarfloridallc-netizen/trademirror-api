@@ -1,3 +1,5 @@
+from identity.signal_detector import detect_behavioral_signals
+from identity.scoring import calculate_identity_scores
 from identity.engine import build_trading_identity
 
 sample_metrics = {
@@ -9,6 +11,15 @@ sample_metrics = {
     "net_pnl": 457.28,
 }
 
-result = build_trading_identity(sample_metrics)
+signals = detect_behavioral_signals(sample_metrics)
+scores = calculate_identity_scores(sample_metrics)
+identity = build_trading_identity(sample_metrics)
 
-print(result)
+print("SIGNALS:")
+print(signals)
+
+print("\nSCORES:")
+print(scores)
+
+print("\nIDENTITY:")
+print(identity)
