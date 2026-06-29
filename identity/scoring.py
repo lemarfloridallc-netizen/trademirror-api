@@ -1,3 +1,4 @@
+from identity.signal_detector import detect_behavioral_signals
 def calculate_statistical_edge_score(metrics):
     win_rate = float(metrics.get("win_rate", 0) or 0)
     profit_factor = float(metrics.get("profit_factor", 0) or 0)
@@ -25,3 +26,57 @@ def calculate_statistical_edge_score(metrics):
     )
 
     return clamp_score(score)
+def calculate_signal_adjustments(metrics):
+    """
+    Convert detected behavioral signals into score adjustments.
+
+    v1 uses simple adjustments.
+    Future versions will weight signals by frequency and confidence.
+    """
+
+    signals = detect_behavioral_signals(metrics)
+
+    adjustments = {
+        "patience_score": 0,
+        "discipline_score": 0,
+        "risk_management_score": 0,
+        "selection_score": 0,
+        "consistency_score": 0,
+        "adaptability_score": 0,
+        "execution_score": 0,
+        "psychology_score": 0,
+        "statistical_edge_score": 0,
+        "evolution_score": 0,
+    }
+
+    if "BS003" in signals:
+        adjustments["discipline_score"] += 5
+        adjustments["risk_management_score"] += 5
+        adjustments["psychology_score"] += 3
+
+    if "BS006" in signals:
+        adjustments["execution_score"] += 5
+        adjustments["statistical_edge_score"] += 5
+        adjustments["consistency_score"] += 3
+
+    if "BS007" in signals:
+        adjustments["discipline_score"] -= 8
+        adjustments["psychology_score"] -= 6
+        adjustments["risk_management_score"] -= 5
+
+    if "BS008" in signals:
+        adjustments["selection_score"] += 5
+        adjustments["consistency_score"] += 3
+        adjustments["statistical_edge_score"] += 3
+
+    if "BS009" in signals:
+        adjustments["risk_management_score"] -= 10
+        adjustments["psychology_score"] -= 8
+        adjustments["discipline_score"] -= 5
+
+    if "BS010" in signals:
+        adjustments["risk_management_score"] += 5
+        adjustments["discipline_score"] += 3
+        adjustments["consistency_score"] += 3
+
+    return adjustments
