@@ -1,0 +1,57 @@
+BS001 — Waits for Confirmation
+Detecta si el trader espera una confirmación válida antes de entrar.
+Dimensiones impactadas: Patience, Discipline, Execution.
+Confianza v1: baja/media porque requiere datos por operación para máxima precisión.
+
+BS002 — Chases Price
+Detecta si el trader entra tarde después de que el precio ya se movió.
+Dimensiones impactadas: Patience, Execution, Psychology.
+Confianza v1: baja hasta tener precio/tiempo por operación.
+
+BS003 — Respects Risk Management
+Detecta si el trader respeta su gestión de riesgo definida, incluyendo pérdidas controladas, límites por operación y no extender exposición emocionalmente.
+Dimensiones impactadas: Discipline, Risk Management, Psychology.
+Confianza v1: media usando gross_loss, gross_profit y net_pnl.
+Confianza v2: alta con datos por operación.
+
+BS004 — Breaks Risk Management Emotionally
+Detecta si el trader altera su gestión de riesgo por miedo, esperanza, presión o deseo de recuperar.
+Dimensiones impactadas: Discipline, Risk Management, Psychology.
+Confianza v1: media/baja.
+Confianza v2: alta con tamaño, pérdida máxima y secuencia de operaciones.
+
+BS005 — Takes Profits Early
+Detecta si el trader cierra ganancias antes de que su ventaja se desarrolle.
+Dimensiones impactadas: Execution, Discipline, Statistical Edge.
+Confianza v1: baja/media.
+Confianza v2: alta con TP planificado y salida real.
+
+BS006 — Lets Winners Run
+Detecta si el trader permite que las operaciones ganadoras alcancen o superen su objetivo.
+Dimensiones impactadas: Execution, Statistical Edge, Consistency.
+Confianza v1: media usando profit_factor y net_pnl.
+Confianza v2: alta con trades individuales.
+
+BS007 — Overtrades
+Detecta si el trader toma más operaciones de las que su ventaja soporta.
+Dimensiones impactadas: Discipline, Psychology, Risk Management.
+Confianza v1: media usando total_trades y profit_factor.
+Confianza v2: alta con conteo diario y deterioro por sesión.
+
+BS008 — Trades in Ideal Session
+Detecta si el trader opera dentro del horario donde históricamente obtiene mejores resultados.
+Dimensiones impactadas: Selection, Consistency, Statistical Edge.
+Confianza v1: baja/media.
+Confianza v2: alta con timestamps.
+
+BS009 — Increases Risk After Loss
+Detecta si el trader incrementa exposición después de perder.
+Dimensiones impactadas: Risk Management, Psychology, Discipline.
+Confianza v1: baja/media.
+Confianza v2: alta con secuencia y tamaño por trade.
+
+BS010 — Consistent Position Size
+Detecta si el trader mantiene un tamaño de posición estable y coherente con su plan.
+Dimensiones impactadas: Risk Management, Discipline, Consistency.
+Confianza v1: media.
+Confianza v2: alta con tamaño individual por operación.
