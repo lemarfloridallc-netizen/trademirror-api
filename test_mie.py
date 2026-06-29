@@ -1,6 +1,14 @@
-from identity.signal_detector import detect_behavioral_signals
-from identity.scoring import calculate_identity_scores
+"""
+Mirror Identity Engine - Integration Test
+
+Temporary local test.
+This file is NOT used by the API.
+"""
+
+from pprint import pprint
+
 from identity.engine import build_trading_identity
+
 
 sample_metrics = {
     "win_rate": 64.71,
@@ -11,15 +19,12 @@ sample_metrics = {
     "net_pnl": 457.28,
 }
 
-signals = detect_behavioral_signals(sample_metrics)
-scores = calculate_identity_scores(sample_metrics)
-identity = build_trading_identity(sample_metrics)
+result = build_trading_identity(sample_metrics)
 
-print("SIGNALS:")
-print(signals)
+print("\n==============================")
+print(" MIRROR IDENTITY ENGINE TEST")
+print("==============================\n")
 
-print("\nSCORES:")
-print(scores)
+pprint(result)
 
-print("\nIDENTITY:")
-print(identity)
+print("\n========== END TEST ==========\n")
