@@ -1,57 +1,231 @@
+Behavioral Signal Specification v1
+
+Purpose
+
+This document defines the official behavioral signals used by the Mirror Identity Engine (MIE).
+
+Behavioral Signals are observable trading behaviors. They feed the 10 dimensions of the Mirror Identity Framework (MIF).
+
+Each signal includes:
+- Definition
+- Impacted dimensions
+- Confidence level
+- Impact
+- Persistence
+- Detection confidence
+
+Behavioral Signal Weight Model v1
+
+Impact:
+- LOW
+- MEDIUM
+- HIGH
+- CRITICAL
+
+Persistence:
+- Temporary
+- Recurring
+- Structural
+
+Detection Confidence:
+- Scale from 0 to 100
+
+
 BS001 — Waits for Confirmation
-Detecta si el trader espera una confirmación válida antes de entrar.
-Dimensiones impactadas: Patience, Discipline, Execution.
-Confianza v1: baja/media porque requiere datos por operación para máxima precisión.
+
+Definition:
+Detects whether the trader waits for valid confirmation before entering a trade.
+
+Impacted Dimensions:
+- Patience
+- Discipline
+- Execution
+
+Confidence:
+v1: Low/Medium
+v2: High with trade-level data
+
+Impact: HIGH
+Persistence: Recurring
+Detection Confidence v1: 45
+Detection Confidence v2: 85
+
 
 BS002 — Chases Price
-Detecta si el trader entra tarde después de que el precio ya se movió.
-Dimensiones impactadas: Patience, Execution, Psychology.
-Confianza v1: baja hasta tener precio/tiempo por operación.
+
+Definition:
+Detects whether the trader enters late after price has already moved significantly.
+
+Impacted Dimensions:
+- Patience
+- Execution
+- Psychology
+
+Confidence:
+v1: Low
+v2: High with price/time trade-level data
+
+Impact: HIGH
+Persistence: Recurring
+Detection Confidence v1: 35
+Detection Confidence v2: 90
+
 
 BS003 — Respects Risk Management
-Detecta si el trader respeta su gestión de riesgo definida, incluyendo pérdidas controladas, límites por operación y no extender exposición emocionalmente.
-Dimensiones impactadas: Discipline, Risk Management, Psychology.
-Confianza v1: media usando gross_loss, gross_profit y net_pnl.
-Confianza v2: alta con datos por operación.
+
+Definition:
+Detects whether the trader respects defined risk management, including controlled losses, risk limits, and avoiding emotional exposure extension.
+
+Impacted Dimensions:
+- Discipline
+- Risk Management
+- Psychology
+
+Confidence:
+v1: Medium using gross_loss, gross_profit and net_pnl
+v2: High with trade-level risk data
+
+Impact: CRITICAL
+Persistence: Structural
+Detection Confidence v1: 65
+Detection Confidence v2: 95
+
 
 BS004 — Breaks Risk Management Emotionally
-Detecta si el trader altera su gestión de riesgo por miedo, esperanza, presión o deseo de recuperar.
-Dimensiones impactadas: Discipline, Risk Management, Psychology.
-Confianza v1: media/baja.
-Confianza v2: alta con tamaño, pérdida máxima y secuencia de operaciones.
+
+Definition:
+Detects whether the trader changes risk exposure because of fear, hope, pressure, or the desire to recover losses.
+
+Impacted Dimensions:
+- Discipline
+- Risk Management
+- Psychology
+
+Confidence:
+v1: Low/Medium
+v2: High with position size, max loss, and trade sequence data
+
+Impact: CRITICAL
+Persistence: Structural
+Detection Confidence v1: 45
+Detection Confidence v2: 95
+
 
 BS005 — Takes Profits Early
-Detecta si el trader cierra ganancias antes de que su ventaja se desarrolle.
-Dimensiones impactadas: Execution, Discipline, Statistical Edge.
-Confianza v1: baja/media.
-Confianza v2: alta con TP planificado y salida real.
+
+Definition:
+Detects whether the trader closes winning trades before the edge has fully developed.
+
+Impacted Dimensions:
+- Execution
+- Discipline
+- Statistical Edge
+
+Confidence:
+v1: Low/Medium
+v2: High with planned TP and actual exit data
+
+Impact: MEDIUM
+Persistence: Recurring
+Detection Confidence v1: 50
+Detection Confidence v2: 90
+
 
 BS006 — Lets Winners Run
-Detecta si el trader permite que las operaciones ganadoras alcancen o superen su objetivo.
-Dimensiones impactadas: Execution, Statistical Edge, Consistency.
-Confianza v1: media usando profit_factor y net_pnl.
-Confianza v2: alta con trades individuales.
+
+Definition:
+Detects whether the trader allows winning trades to reach or exceed the planned objective.
+
+Impacted Dimensions:
+- Execution
+- Statistical Edge
+- Consistency
+
+Confidence:
+v1: Medium using profit_factor and net_pnl
+v2: High with individual trade data
+
+Impact: HIGH
+Persistence: Recurring
+Detection Confidence v1: 60
+Detection Confidence v2: 90
+
 
 BS007 — Overtrades
-Detecta si el trader toma más operaciones de las que su ventaja soporta.
-Dimensiones impactadas: Discipline, Psychology, Risk Management.
-Confianza v1: media usando total_trades y profit_factor.
-Confianza v2: alta con conteo diario y deterioro por sesión.
+
+Definition:
+Detects whether the trader takes more trades than the edge or plan supports.
+
+Impacted Dimensions:
+- Discipline
+- Psychology
+- Risk Management
+
+Confidence:
+v1: Medium using total_trades and profit_factor
+v2: High with daily trade count and session deterioration
+
+Impact: HIGH
+Persistence: Recurring
+Detection Confidence v1: 60
+Detection Confidence v2: 95
+
 
 BS008 — Trades in Ideal Session
-Detecta si el trader opera dentro del horario donde históricamente obtiene mejores resultados.
-Dimensiones impactadas: Selection, Consistency, Statistical Edge.
-Confianza v1: baja/media.
-Confianza v2: alta con timestamps.
+
+Definition:
+Detects whether the trader operates during the time window where historical performance is strongest.
+
+Impacted Dimensions:
+- Selection
+- Consistency
+- Statistical Edge
+
+Confidence:
+v1: Low/Medium
+v2: High with timestamps
+
+Impact: MEDIUM
+Persistence: Recurring
+Detection Confidence v1: 45
+Detection Confidence v2: 95
+
 
 BS009 — Increases Risk After Loss
-Detecta si el trader incrementa exposición después de perder.
-Dimensiones impactadas: Risk Management, Psychology, Discipline.
-Confianza v1: baja/media.
-Confianza v2: alta con secuencia y tamaño por trade.
+
+Definition:
+Detects whether the trader increases exposure after a losing trade.
+
+Impacted Dimensions:
+- Risk Management
+- Psychology
+- Discipline
+
+Confidence:
+v1: Low/Medium
+v2: High with trade sequence and position sizing data
+
+Impact: CRITICAL
+Persistence: Structural
+Detection Confidence v1: 40
+Detection Confidence v2: 95
+
 
 BS010 — Consistent Position Size
-Detecta si el trader mantiene un tamaño de posición estable y coherente con su plan.
-Dimensiones impactadas: Risk Management, Discipline, Consistency.
-Confianza v1: media.
-Confianza v2: alta con tamaño individual por operación.
+
+Definition:
+Detects whether the trader maintains stable and coherent position sizing according to the plan.
+
+Impacted Dimensions:
+- Risk Management
+- Discipline
+- Consistency
+
+Confidence:
+v1: Medium
+v2: High with individual position size per trade
+
+Impact: HIGH
+Persistence: Structural
+Detection Confidence v1: 60
+Detection Confidence v2: 90
