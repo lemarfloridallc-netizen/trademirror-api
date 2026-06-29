@@ -1,1 +1,145 @@
+Behavioral Signal Matrix v1
 
+Purpose
+
+This document defines how each Behavioral Signal impacts the 10 Mirror Identity Framework dimensions.
+
+Impact scale:
++10 = strong positive impact
++5 = moderate positive impact
+0 = no direct impact
+-5 = moderate negative impact
+-10 = strong negative impact
+
+Dimensions:
+- Patience
+- Discipline
+- Risk Management
+- Selection
+- Consistency
+- Adaptability
+- Execution
+- Psychology
+- Statistical Edge
+- Evolution
+
+
+BS001 — Waits for Confirmation
+Patience: +10
+Discipline: +8
+Risk Management: +3
+Selection: +5
+Consistency: +4
+Adaptability: 0
+Execution: +6
+Psychology: +4
+Statistical Edge: +3
+Evolution: +2
+
+BS002 — Chases Price
+Patience: -10
+Discipline: -6
+Risk Management: -4
+Selection: -5
+Consistency: -4
+Adaptability: 0
+Execution: -8
+Psychology: -6
+Statistical Edge: -4
+Evolution: -2
+
+BS003 — Respects Risk Management
+Patience: +2
+Discipline: +10
+Risk Management: +10
+Selection: +2
+Consistency: +6
+Adaptability: 0
+Execution: +4
+Psychology: +6
+Statistical Edge: +5
+Evolution: +3
+
+BS004 — Breaks Risk Management Emotionally
+Patience: -3
+Discipline: -10
+Risk Management: -10
+Selection: -3
+Consistency: -6
+Adaptability: 0
+Execution: -5
+Psychology: -10
+Statistical Edge: -6
+Evolution: -4
+
+BS005 — Takes Profits Early
+Patience: -2
+Discipline: -5
+Risk Management: +1
+Selection: 0
+Consistency: -3
+Adaptability: 0
+Execution: -7
+Psychology: -4
+Statistical Edge: -6
+Evolution: -2
+
+BS006 — Lets Winners Run
+Patience: +4
+Discipline: +5
+Risk Management: +2
+Selection: +3
+Consistency: +6
+Adaptability: 0
+Execution: +8
+Psychology: +4
+Statistical Edge: +8
+Evolution: +3
+
+BS007 — Overtrades
+Patience: -6
+Discipline: -9
+Risk Management: -8
+Selection: -5
+Consistency: -7
+Adaptability: -2
+Execution: -5
+Psychology: -9
+Statistical Edge: -6
+Evolution: -5
+
+BS008 — Trades in Ideal Session
+Patience: +3
+Discipline: +4
+Risk Management: +2
+Selection: +8
+Consistency: +6
+Adaptability: +2
+Execution: +4
+Psychology: +3
+Statistical Edge: +6
+Evolution: +4
+
+BS009 — Increases Risk After Loss
+Patience: -4
+Discipline: -9
+Risk Management: -10
+Selection: -3
+Consistency: -7
+Adaptability: -2
+Execution: -4
+Psychology: -10
+Statistical Edge: -6
+Evolution: -5
+
+BS010 — Consistent Position Size
+Patience: +2
+Discipline: +8
+Risk Management: +9
+Selection: +2
+Consistency: +8
+Adaptability: 0
+Execution: +3
+Psychology: +5
+Statistical Edge: +4
+Evolution: +3
