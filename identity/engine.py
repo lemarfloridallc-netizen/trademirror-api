@@ -4,7 +4,7 @@ Mirror Identity Engine - Engine
 Main orchestration layer for the Mirror Identity Engine (MIE).
 """
 
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 
 from identity.dimensions import DIMENSION_WEIGHTS
 from identity.signal_detector import detect_behavioral_signals
@@ -12,6 +12,7 @@ from identity.confidence import calculate_detected_signal_confidences
 from identity.scoring import calculate_identity_scores, clamp_score
 from identity.matcher import match_identity_profiles, get_best_identity_match
 from identity.blueprint import generate_trading_blueprint
+from identity.evolution import build_evolution
 
 
 def calculate_edge_score(scores: Dict[str, float]) -> float:
@@ -119,21 +120,20 @@ def generate_mirror_insight(
     }
 
 
-def build_trading_identity(metrics: Dict[str, Any]) -> Dict[str, Any]:
+def build_trading_identity(
+    metrics: Dict[str, Any],
+    trades: Optional[List[Dict[str, Any]]] = None
+) -> Dict[str, Any]:
 
-    # Detect behavioral signals
     signals = detect_behavioral_signals(metrics)
 
-    # Confidence per signal
     signal_confidences = calculate_detected_signal_confidences(
         signals,
         metrics
     )
 
-    # Dimension scores
     scores = calculate_identity_scores(metrics)
 
-    # Match against official identities
     identity_matches = match_identity_profiles(scores)
     best_match = get_best_identity_match(scores)
 
@@ -169,7 +169,10 @@ def build_trading_identity(metrics: Dict[str, Any]) -> Dict[str, Any]:
         metrics
     )
 
+    evolution = build_evolution(trades or [])
+
     identity_payload["blueprint"] = blueprint
     identity_payload["mirror_insight"] = mirror_insight
+    identity_payload["evolution"] = evolution
 
     return identity_payload
