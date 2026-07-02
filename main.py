@@ -142,10 +142,13 @@ def parse_ibkr(text: str):
             closed_trades.append({
                 "symbol": symbol,
                 "asset_base": base_asset(symbol),
+                "asset": base_asset(symbol),
+                "ticker": base_asset(symbol),
                 "option_side": option_side(symbol),
                 "transaction_pnl": to_float(row[10]),
                 "commission": to_float(row[11]),
                 "realized_pnl": to_float(row[13]),
+                "pnl": to_float(row[13]),
             })
 
     return {
@@ -225,10 +228,13 @@ def detect_broker(text: str):
 
 
 def build_full_analysis_response(broker: str, filename: str, parsed: dict, metrics: dict):
-    identity = build_trading_identity(metrics) if metrics else {}
+    trades = parsed.get("closed_trades", [])
+
+    identity = build_trading_identity(metrics, trades) if metrics else {}
 
     blueprint = identity.get("blueprint", {}) if identity else {}
     mirror_insight = identity.get("mirror_insight", {}) if identity else {}
+    evolution = identity.get("evolution", {}) if identity else {}
 
     return {
         "status": "success",
@@ -238,6 +244,7 @@ def build_full_analysis_response(broker: str, filename: str, parsed: dict, metri
         "identity": identity,
         "blueprint": blueprint,
         "mirror_insight": mirror_insight,
+        "evolution": evolution,
         "sample_orders": parsed["orders"][:5],
         "sample_closed_trades": parsed["closed_trades"][:5],
     }
