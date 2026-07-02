@@ -1,17 +1,20 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 import csv
-import io
-import re
 import requests
 from pydantic import BaseModel
 from collections import defaultdict
 from datetime import datetime
 
+from identity.engine import build_trading_identity
+
 app = FastAPI(title="TradeMirror API")
+
+
 class AnalyzeUrlRequest(BaseModel):
     file_url: str
-    
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -20,35 +23,42 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.get("/")
 def root():
     return {"message": "TradeMirror API Online"}
+
 
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
+
 def clean_line(line: str) -> str:
     return line.strip().strip(";").strip()
+
 
 def to_float(value):
     try:
         if value is None or value == "" or value == "--":
             return 0.0
         return float(str(value).replace(",", ""))
-    except:
+    except Exception:
         return 0.0
+
 
 def base_asset(symbol: str):
     if not symbol:
         return "UNKNOWN"
     return symbol.split()[0].upper()
 
+
 def option_side(symbol: str):
     parts = symbol.split()
     if parts and parts[-1] in ["C", "P"]:
         return parts[-1]
     return "UNKNOWN"
+
 
 def parse_csv_rows(text: str):
     rows = []
@@ -59,9 +69,10 @@ def parse_csv_rows(text: str):
         try:
             parsed = next(csv.reader([line]))
             rows.append(parsed)
-        except:
+        except Exception:
             continue
     return rows
+
 
 def parse_ibkr(text: str):
     rows = parse_csv_rows(text)
@@ -107,16 +118,8 @@ def parse_ibkr(text: str):
                 dt = datetime.strptime(datetime_text, "%Y-%m-%d, %H:%M:%S")
                 date = dt.date().isoformat()
                 time = dt.time().isoformat()
-            except:
+            except Exception:
                 date = datetime_text
-
-            quantity = to_float(row[7])
-            trade_price = to_float(row[8])
-            transaction_value = to_float(row[10])
-            commission = to_float(row[11])
-            realized_pnl = to_float(row[13])
-            mtm_pnl = to_float(row[14]) if len(row) > 14 else 0
-            code = row[15].strip() if len(row) > 15 else ""
 
             orders.append({
                 "symbol": symbol,
@@ -124,28 +127,25 @@ def parse_ibkr(text: str):
                 "option_side": option_side(symbol),
                 "date": date,
                 "time": time,
-                "quantity": quantity,
-                "price": trade_price,
-                "transaction_value": transaction_value,
-                "commission": commission,
-                "realized_pnl": realized_pnl,
-                "mtm_pnl": mtm_pnl,
-                "code": code
+                "quantity": to_float(row[7]),
+                "price": to_float(row[8]),
+                "transaction_value": to_float(row[10]),
+                "commission": to_float(row[11]),
+                "realized_pnl": to_float(row[13]),
+                "mtm_pnl": to_float(row[14]) if len(row) > 14 else 0,
+                "code": row[15].strip() if len(row) > 15 else "",
             })
 
         if section == "Operaciones" and row_type == "SubTotal" and len(row) >= 15:
             symbol = row[5].strip()
-            transaction_pnl = to_float(row[10])
-            commission = to_float(row[11])
-            realized_pnl = to_float(row[13])
 
             closed_trades.append({
                 "symbol": symbol,
                 "asset_base": base_asset(symbol),
                 "option_side": option_side(symbol),
-                "transaction_pnl": transaction_pnl,
-                "commission": commission,
-                "realized_pnl": realized_pnl
+                "transaction_pnl": to_float(row[10]),
+                "commission": to_float(row[11]),
+                "realized_pnl": to_float(row[13]),
             })
 
     return {
@@ -154,8 +154,9 @@ def parse_ibkr(text: str):
         "starting_capital": starting_capital,
         "ending_capital": ending_capital,
         "commissions_total": commissions_total,
-        "period_return": period_return
+        "period_return": period_return,
     }
+
 
 def calculate_metrics(parsed):
     trades = parsed["closed_trades"]
@@ -216,10 +217,31 @@ def calculate_metrics(parsed):
         "side_breakdown": {k: round(v, 2) for k, v in by_side.items()},
     }
 
+
 def detect_broker(text: str):
     if "Interactive Brokers" in text or "Operaciones" in text or "Trades" in text:
         return "IBKR"
     return "UNKNOWN"
+
+
+def build_full_analysis_response(broker: str, filename: str, parsed: dict, metrics: dict):
+    identity = build_trading_identity(metrics) if metrics else {}
+
+    blueprint = identity.get("blueprint", {}) if identity else {}
+    mirror_insight = identity.get("mirror_insight", {}) if identity else {}
+
+    return {
+        "status": "success",
+        "broker": broker,
+        "filename": filename,
+        "metrics": metrics,
+        "identity": identity,
+        "blueprint": blueprint,
+        "mirror_insight": mirror_insight,
+        "sample_orders": parsed["orders"][:5],
+        "sample_closed_trades": parsed["closed_trades"][:5],
+    }
+
 
 @app.post("/analyze")
 async def analyze(file: UploadFile = File(...)):
@@ -235,14 +257,14 @@ async def analyze(file: UploadFile = File(...)):
         parsed = {"orders": [], "closed_trades": []}
         metrics = {}
 
-    return {
-        "status": "success",
-        "broker": broker,
-        "filename": file.filename,
-        "metrics": metrics,
-        "sample_orders": parsed["orders"][:5],
-        "sample_closed_trades": parsed["closed_trades"][:5]
-    }
+    return build_full_analysis_response(
+        broker=broker,
+        filename=file.filename,
+        parsed=parsed,
+        metrics=metrics,
+    )
+
+
 @app.post("/analyze-url")
 async def analyze_url(payload: AnalyzeUrlRequest):
     file_url = payload.file_url
@@ -251,10 +273,10 @@ async def analyze_url(payload: AnalyzeUrlRequest):
         file_url = "https:" + file_url
 
     response = requests.get(
-    file_url,
-    headers={"User-Agent": "Mozilla/5.0"},
-    timeout=30
-)
+        file_url,
+        headers={"User-Agent": "Mozilla/5.0"},
+        timeout=30,
+    )
     response.raise_for_status()
 
     text = response.content.decode("utf-8-sig", errors="ignore")
@@ -270,12 +292,9 @@ async def analyze_url(payload: AnalyzeUrlRequest):
 
     filename = file_url.split("/")[-1]
 
-    return {
-        "status": "success",
-        "broker": broker,
-        "filename": filename,
-        "metrics": metrics,
-        "sample_orders": parsed["orders"][:5],
-        "sample_closed_trades": parsed["closed_trades"][:5]
-    }
-
+    return build_full_analysis_response(
+        broker=broker,
+        filename=filename,
+        parsed=parsed,
+        metrics=metrics,
+    )
