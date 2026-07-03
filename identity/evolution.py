@@ -25,6 +25,15 @@ def clamp(value: float, minimum: float = 0.0, maximum: float = 100.0) -> float:
     return round(max(minimum, min(value, maximum)), 2)
 
 
+def display_score(raw_score: float) -> float:
+    raw_score = safe_float(raw_score)
+
+    if raw_score < 60:
+        return 60.0
+
+    return clamp(raw_score)
+
+
 def get_pnl(trade: Dict[str, Any]) -> float:
     return safe_float(
         trade.get("pnl")
@@ -57,7 +66,10 @@ def calculate_profit_factor(gross_profit: float, gross_loss: float) -> float:
 
 def split_trades_by_time(trades: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
     if len(trades) < 2:
-        return {"previous_period": [], "current_period": trades}
+        return {
+            "previous_period": [],
+            "current_period": trades,
+        }
 
     midpoint = len(trades) // 2
 
@@ -415,7 +427,7 @@ def score_performance(current_period: Dict[str, Any]) -> float:
     return clamp(score)
 
 
-def calculate_evolution_score(
+def calculate_raw_evolution_score(
     previous_period: Dict[str, Any],
     current_period: Dict[str, Any],
     changes: Dict[str, Dict[str, Any]],
@@ -423,35 +435,34 @@ def calculate_evolution_score(
     performance_score = score_performance(current_period)
     growth_score = score_growth(changes)
 
-    # Mirror Confidence:
-    # 65% current performance + 35% evolution vs previous period.
-    # This keeps the score honest, but does not punish a trader only because
-    # the latest period was difficult if there is real behavioral improvement.
-    mirror_confidence = (performance_score * 0.65) + (growth_score * 0.35)
+    raw_score = (performance_score * 0.65) + (growth_score * 0.35)
 
-    return clamp(mirror_confidence)
+    return clamp(raw_score)
 
 
-def get_evolution_stage(score: float) -> str:
-    score = safe_float(score)
+def get_evolution_stage(raw_score: float) -> str:
+    score = safe_float(raw_score)
 
-    if score >= 85:
-        return "elite_evolution"
-    if score >= 70:
-        return "strong_improvement"
-    if score >= 55:
-        return "improving"
+    if score >= 90:
+        return "elite"
+    if score >= 75:
+        return "advanced"
+    if score >= 60:
+        return "consistent"
     if score >= 40:
+        return "developing"
+    if score >= 20:
         return "rebuilding"
 
-    return "critical_decline"
+    return "foundation"
 
 
 def build_coach_message(
     previous: Dict[str, Any],
     current: Dict[str, Any],
     changes: Dict[str, Dict[str, Any]],
-    score: float,
+    raw_score: float,
+    display_score_value: float,
 ) -> str:
     performance_score = score_performance(current)
     growth_score = score_growth(changes)
@@ -479,16 +490,21 @@ def build_coach_message(
     if current.get("worst_asset"):
         observations.append(f"tu mayor debilidad actual está en {current.get('worst_asset')}")
 
-    if score >= 70:
-        base = "Estás construyendo una evolución sólida."
-    elif score >= 55:
-        base = "Tu evolución muestra avance real, aunque todavía requiere más consistencia."
-    elif score >= 40:
-        base = "Estás en una fase de reconstrucción operativa."
+    if raw_score >= 60:
+        base = "Tu Mirror Score refleja una evolución operativa sólida."
+    elif raw_score >= 40:
+        base = "Estás en una etapa de desarrollo. El sistema ya detecta áreas claras para mejorar."
+    elif raw_score >= 20:
+        base = "Estás en una fase de reconstrucción. El objetivo ahora es proteger capital y fortalecer tu proceso."
     else:
-        base = "Tu evolución muestra señales críticas, pero ya existe información clara para reconstruir tu proceso."
+        base = "Estás construyendo la base. La prioridad no es operar más, sino operar mejor."
 
-    base += f" Performance Score: {round(performance_score, 1)}. Growth Score: {round(growth_score, 1)}."
+    base += (
+        f" Score visible: {round(display_score_value, 1)}. "
+        f"Score real: {round(raw_score, 1)}. "
+        f"Performance: {round(performance_score, 1)}. "
+        f"Growth: {round(growth_score, 1)}."
+    )
 
     if observations:
         base += " " + ". ".join(observations[:3]) + "."
@@ -500,7 +516,11 @@ def generate_evolution_engine(trades: List[Dict[str, Any]]) -> Dict[str, Any]:
     if not trades:
         return {
             "status": "insufficient_data",
-            "evolution_score": 0.0,
+            "evolution_score": 60.0,
+            "display_evolution_score": 60.0,
+            "raw_evolution_score": 0.0,
+            "performance_score": 0.0,
+            "growth_score": 0.0,
             "evolution_stage": "no_data",
             "previous_period": {},
             "current_period": {},
@@ -536,24 +556,37 @@ def generate_evolution_engine(trades: List[Dict[str, Any]]) -> Dict[str, Any]:
         ),
     }
 
-    evolution_score = calculate_evolution_score(
+    raw_score = calculate_raw_evolution_score(
         previous_period,
         current_period,
         changes,
     )
 
-    evolution_stage = get_evolution_stage(evolution_score)
+    visible_score = display_score(raw_score)
+    performance_score = score_performance(current_period)
+    growth_score = score_growth(changes)
+    evolution_stage = get_evolution_stage(raw_score)
 
     coach_message = build_coach_message(
         previous_period,
         current_period,
         changes,
-        evolution_score,
+        raw_score,
+        visible_score,
     )
 
     return {
         "status": "completed",
-        "evolution_score": evolution_score,
+
+        # Compatibility with current Bubble binding.
+        "evolution_score": visible_score,
+
+        # New explicit scoring fields.
+        "display_evolution_score": visible_score,
+        "raw_evolution_score": raw_score,
+        "performance_score": performance_score,
+        "growth_score": growth_score,
+
         "evolution_stage": evolution_stage,
         "previous_period": previous_period,
         "current_period": current_period,
