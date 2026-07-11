@@ -8,6 +8,7 @@ from datetime import datetime
 
 from identity.engine import build_trading_identity
 from identity.mirror_law import build_monthly_metrics
+from identity.mirror_law.trade_reconstructor import reconstruct_closed_trades
 
 
 app = FastAPI(title="TradeMirror API")
@@ -45,17 +46,29 @@ def to_float(value):
         if value is None or value == "" or value == "--":
             return 0.0
 
+        text = str(value).strip()
+
+        is_parenthesized_negative = (
+            text.startswith("(")
+            and text.endswith(")")
+        )
+
         cleaned_value = (
-            str(value)
+            text
             .replace(",", "")
             .replace("$", "")
+            .replace("%", "")
+            .replace("(", "")
+            .replace(")", "")
             .strip()
         )
 
-        if cleaned_value.startswith("(") and cleaned_value.endswith(")"):
-            cleaned_value = f"-{cleaned_value[1:-1]}"
+        number = float(cleaned_value)
 
-        return float(cleaned_value)
+        if is_parenthesized_negative:
+            number = -abs(number)
+
+        return number
 
     except Exception:
         return 0.0
@@ -69,6 +82,9 @@ def base_asset(symbol: str):
 
 
 def option_side(symbol: str):
+    if not symbol:
+        return "UNKNOWN"
+
     parts = symbol.split()
 
     if parts and parts[-1] in ["C", "P"]:
@@ -89,6 +105,7 @@ def parse_csv_rows(text: str):
         try:
             parsed = next(csv.reader([line]))
             rows.append(parsed)
+
         except Exception:
             continue
 
@@ -96,14 +113,25 @@ def parse_csv_rows(text: str):
 
 
 def parse_ibkr(text: str):
+    """
+    Parses the IBKR activity statement.
+
+    Produces two existing data collections:
+
+    1. orders
+       Individual dated order records.
+
+    2. closed_trades
+       Final subtotal records containing realized P&L.
+
+    Mirror Law reconstructs dated closed trades later by combining
+    these two collections. This parser does not calculate Mirror Law.
+    """
+
     rows = parse_csv_rows(text)
 
     orders = []
     closed_trades = []
-
-    # Dedicated dated records for Mirror Law.
-    # This does not replace or modify the existing closed_trades logic.
-    mirror_law_trades = []
 
     starting_capital = 0
     ending_capital = 0
@@ -118,19 +146,25 @@ def parse_ibkr(text: str):
         row_type = row[1].strip()
 
         if section == "Valor liquidativo" and row_type == "Data":
-            if len(row) >= 7 and row[2] == "Total":
+            if len(row) >= 7 and row[2].strip() == "Total":
                 starting_capital = to_float(row[3])
                 ending_capital = to_float(row[6])
 
         if section == "Cambio en NAV" and row_type == "Data":
-            if len(row) >= 4 and row[2] == "Comisiones":
-                commissions_total = abs(to_float(row[3]))
+            if len(row) >= 4 and row[2].strip() == "Comisiones":
+                commissions_total = abs(
+                    to_float(row[3])
+                )
 
         if section == "Valor liquidativo" and row_type == "Data":
             if len(row) >= 3 and "%" in row[2]:
-                period_return = row[2]
+                period_return = row[2].strip()
 
-        if section == "Operaciones" and row_type == "Data" and len(row) >= 15:
+        if (
+            section == "Operaciones"
+            and row_type == "Data"
+            and len(row) >= 15
+        ):
             discriminator = row[2].strip()
 
             if discriminator != "Order":
@@ -141,7 +175,6 @@ def parse_ibkr(text: str):
 
             trade_date = None
             trade_time = None
-            parsed_datetime = None
 
             try:
                 parsed_datetime = datetime.strptime(
@@ -149,74 +182,67 @@ def parse_ibkr(text: str):
                     "%Y-%m-%d, %H:%M:%S",
                 )
 
-                trade_date = parsed_datetime.date().isoformat()
-                trade_time = parsed_datetime.time().isoformat()
+                trade_date = (
+                    parsed_datetime.date().isoformat()
+                )
+
+                trade_time = (
+                    parsed_datetime.time().isoformat()
+                )
 
             except Exception:
                 trade_date = datetime_text
+                trade_time = None
 
-            realized_pnl = to_float(row[13])
-
-            order = {
-                "symbol": symbol,
-                "asset_base": base_asset(symbol),
-                "option_side": option_side(symbol),
-                "date": trade_date,
-                "time": trade_time,
-                "quantity": to_float(row[7]),
-                "price": to_float(row[8]),
-                "transaction_value": to_float(row[10]),
-                "commission": to_float(row[11]),
-                "realized_pnl": realized_pnl,
-                "mtm_pnl": to_float(row[14]) if len(row) > 14 else 0,
-                "code": row[15].strip() if len(row) > 15 else "",
-            }
-
-            orders.append(order)
-
-            # Mirror Law requires both:
-            # 1. A valid date.
-            # 2. A realized result.
-            #
-            # Zero-P&L opening orders are excluded because they do not yet
-            # represent a realized trading result.
-            if parsed_datetime is not None and realized_pnl != 0:
-                mirror_law_trades.append({
-                    "trade_date": trade_date,
-                    "trade_datetime": parsed_datetime.isoformat(),
+            orders.append(
+                {
+                    "symbol": symbol,
+                    "asset_base": base_asset(symbol),
+                    "option_side": option_side(symbol),
                     "date": trade_date,
+                    "time": trade_time,
+                    "quantity": to_float(row[7]),
+                    "price": to_float(row[8]),
+                    "transaction_value": to_float(row[10]),
+                    "commission": to_float(row[11]),
+                    "realized_pnl": to_float(row[13]),
+                    "mtm_pnl": (
+                        to_float(row[14])
+                        if len(row) > 14
+                        else 0
+                    ),
+                    "code": (
+                        row[15].strip()
+                        if len(row) > 15
+                        else ""
+                    ),
+                }
+            )
+
+        if (
+            section == "Operaciones"
+            and row_type == "SubTotal"
+            and len(row) >= 15
+        ):
+            symbol = row[5].strip()
+
+            closed_trades.append(
+                {
                     "symbol": symbol,
                     "asset_base": base_asset(symbol),
                     "asset": base_asset(symbol),
                     "ticker": base_asset(symbol),
                     "option_side": option_side(symbol),
-                    "quantity": to_float(row[7]),
-                    "price": to_float(row[8]),
-                    "transaction_value": to_float(row[10]),
+                    "transaction_pnl": to_float(row[10]),
                     "commission": to_float(row[11]),
-                    "realized_pnl": realized_pnl,
-                    "pnl": realized_pnl,
-                })
-
-        if section == "Operaciones" and row_type == "SubTotal" and len(row) >= 15:
-            symbol = row[5].strip()
-
-            closed_trades.append({
-                "symbol": symbol,
-                "asset_base": base_asset(symbol),
-                "asset": base_asset(symbol),
-                "ticker": base_asset(symbol),
-                "option_side": option_side(symbol),
-                "transaction_pnl": to_float(row[10]),
-                "commission": to_float(row[11]),
-                "realized_pnl": to_float(row[13]),
-                "pnl": to_float(row[13]),
-            })
+                    "realized_pnl": to_float(row[13]),
+                    "pnl": to_float(row[13]),
+                }
+            )
 
     return {
         "orders": orders,
         "closed_trades": closed_trades,
-        "mirror_law_trades": mirror_law_trades,
         "starting_capital": starting_capital,
         "ending_capital": ending_capital,
         "commissions_total": commissions_total,
@@ -225,7 +251,17 @@ def parse_ibkr(text: str):
 
 
 def calculate_metrics(parsed):
-    trades = parsed["closed_trades"]
+    """
+    Calculates the existing global report metrics.
+
+    This function continues using closed_trades exactly as before.
+    Mirror Law does not change the current Identity or Blueprint inputs.
+    """
+
+    trades = parsed.get(
+        "closed_trades",
+        [],
+    )
 
     total_trades = len(trades)
 
@@ -275,9 +311,17 @@ def calculate_metrics(parsed):
     by_side = defaultdict(float)
 
     for trade in trades:
-        by_asset[trade["asset_base"]] += trade["realized_pnl"]
-        by_symbol[trade["symbol"]] += trade["realized_pnl"]
-        by_side[trade["option_side"]] += trade["realized_pnl"]
+        by_asset[
+            trade["asset_base"]
+        ] += trade["realized_pnl"]
+
+        by_symbol[
+            trade["symbol"]
+        ] += trade["realized_pnl"]
+
+        by_side[
+            trade["option_side"]
+        ] += trade["realized_pnl"]
 
     best_asset = (
         max(
@@ -315,13 +359,13 @@ def calculate_metrics(parsed):
         else None
     )
 
-    avg_winner = (
+    average_winner = (
         gross_profit / len(winners)
         if winners
         else 0
     )
 
-    avg_loser = (
+    average_loser = (
         -gross_loss / len(losers)
         if losers
         else 0
@@ -329,7 +373,9 @@ def calculate_metrics(parsed):
 
     return {
         "total_trades": total_trades,
-        "orders_count": len(parsed["orders"]),
+        "orders_count": len(
+            parsed.get("orders", [])
+        ),
         "winning_trades": len(winners),
         "losing_trades": len(losers),
         "win_rate": round(win_rate, 2),
@@ -341,27 +387,50 @@ def calculate_metrics(parsed):
             if profit_factor is not None
             else None
         ),
-        "average_winner": round(avg_winner, 2),
-        "average_loser": round(avg_loser, 2),
+        "average_winner": round(
+            average_winner,
+            2,
+        ),
+        "average_loser": round(
+            average_loser,
+            2,
+        ),
         "best_asset": best_asset[0],
-        "best_asset_pnl": round(best_asset[1], 2),
+        "best_asset_pnl": round(
+            best_asset[1],
+            2,
+        ),
         "worst_asset": worst_asset[0],
-        "worst_asset_pnl": round(worst_asset[1], 2),
+        "worst_asset_pnl": round(
+            worst_asset[1],
+            2,
+        ),
         "best_trade": best_trade,
         "worst_trade": worst_trade,
         "starting_capital": round(
-            parsed["starting_capital"],
+            parsed.get(
+                "starting_capital",
+                0,
+            ),
             2,
         ),
         "ending_capital": round(
-            parsed["ending_capital"],
+            parsed.get(
+                "ending_capital",
+                0,
+            ),
             2,
         ),
         "commissions_total": round(
-            parsed["commissions_total"],
+            parsed.get(
+                "commissions_total",
+                0,
+            ),
             2,
         ),
-        "period_return": parsed["period_return"],
+        "period_return": parsed.get(
+            "period_return"
+        ),
         "asset_breakdown": {
             key: round(value, 2)
             for key, value in by_asset.items()
@@ -388,45 +457,154 @@ def detect_broker(text: str):
     return "UNKNOWN"
 
 
+def build_mirror_law_analysis(parsed: dict):
+    """
+    Builds the isolated Mirror Law data pipeline:
+
+    orders + closed_trades
+        -> reconstructed dated trades
+        -> monthly metrics
+
+    This does not modify Identity or Blueprint.
+    """
+
+    reconstruction = reconstruct_closed_trades(
+        orders=parsed.get(
+            "orders",
+            [],
+        ),
+        closed_trades=parsed.get(
+            "closed_trades",
+            [],
+        ),
+    )
+
+    reconstructed_trades = reconstruction.get(
+        "trades",
+        [],
+    )
+
+    monthly_analysis = build_monthly_metrics(
+        reconstructed_trades
+    )
+
+    return {
+        "months": monthly_analysis.get(
+            "months",
+            [],
+        ),
+        "total_months": monthly_analysis.get(
+            "total_months",
+            0,
+        ),
+        "valid_trades": monthly_analysis.get(
+            "valid_trades",
+            0,
+        ),
+        "ignored_trades": monthly_analysis.get(
+            "ignored_trades",
+            0,
+        ),
+        "reconstruction": {
+            "reconstructed_trades": (
+                reconstruction.get(
+                    "reconstructed_trades",
+                    0,
+                )
+            ),
+            "unmatched_closed_trades_count": (
+                reconstruction.get(
+                    "unmatched_closed_trades_count",
+                    0,
+                )
+            ),
+            "symbols_with_orders_only_count": (
+                reconstruction.get(
+                    "symbols_with_orders_only_count",
+                    0,
+                )
+            ),
+            "unmatched_closed_trades": (
+                reconstruction.get(
+                    "unmatched_closed_trades",
+                    [],
+                )
+            ),
+            "symbols_with_orders_only": (
+                reconstruction.get(
+                    "symbols_with_orders_only",
+                    [],
+                )
+            ),
+        },
+        "sample_reconstructed_trades": (
+            reconstructed_trades[:5]
+        ),
+    }
+
+
 def build_full_analysis_response(
     broker: str,
     filename: str,
     parsed: dict,
     metrics: dict,
 ):
-    trades = parsed.get("closed_trades", [])
+    """
+    Builds the complete API response.
+
+    Existing response objects remain available:
+    - metrics
+    - identity
+    - blueprint
+    - mirror_insight
+    - evolution
+
+    Mirror Law is added as a separate root object.
+    """
+
+    closed_trades = parsed.get(
+        "closed_trades",
+        [],
+    )
 
     identity = (
-        build_trading_identity(metrics, trades)
+        build_trading_identity(
+            metrics,
+            closed_trades,
+        )
         if metrics
         else {}
     )
 
     blueprint = (
-        identity.get("blueprint", {})
+        identity.get(
+            "blueprint",
+            {},
+        )
         if identity
         else {}
     )
 
     mirror_insight = (
-        identity.get("mirror_insight", {})
+        identity.get(
+            "mirror_insight",
+            {},
+        )
         if identity
         else {}
     )
 
     evolution = (
-        identity.get("evolution", {})
+        identity.get(
+            "evolution",
+            {},
+        )
         if identity
         else {}
     )
 
-    mirror_law_trades = parsed.get(
-        "mirror_law_trades",
-        [],
-    )
-
-    mirror_law = build_monthly_metrics(
-        mirror_law_trades
+    mirror_law = build_mirror_law_analysis(
+        parsed
     )
 
     return {
@@ -439,17 +617,36 @@ def build_full_analysis_response(
         "mirror_insight": mirror_insight,
         "evolution": evolution,
         "mirror_law": mirror_law,
-        "sample_orders": parsed.get("orders", [])[:5],
+        "sample_orders": parsed.get(
+            "orders",
+            [],
+        )[:5],
         "sample_closed_trades": parsed.get(
             "closed_trades",
             [],
         )[:5],
-        "sample_mirror_law_trades": mirror_law_trades[:5],
+    }
+
+
+def empty_parsed_response():
+    """
+    Returns a consistent empty parser structure for unknown brokers.
+    """
+
+    return {
+        "orders": [],
+        "closed_trades": [],
+        "starting_capital": 0,
+        "ending_capital": 0,
+        "commissions_total": 0,
+        "period_return": None,
     }
 
 
 @app.post("/analyze")
-async def analyze(file: UploadFile = File(...)):
+async def analyze(
+    file: UploadFile = File(...),
+):
     content = await file.read()
 
     text = content.decode(
@@ -464,28 +661,21 @@ async def analyze(file: UploadFile = File(...)):
         metrics = calculate_metrics(parsed)
 
     else:
-        parsed = {
-            "orders": [],
-            "closed_trades": [],
-            "mirror_law_trades": [],
-            "starting_capital": 0,
-            "ending_capital": 0,
-            "commissions_total": 0,
-            "period_return": None,
-        }
-
+        parsed = empty_parsed_response()
         metrics = {}
 
     return build_full_analysis_response(
         broker=broker,
-        filename=file.filename,
+        filename=file.filename or "uploaded_file.csv",
         parsed=parsed,
         metrics=metrics,
     )
 
 
 @app.post("/analyze-url")
-async def analyze_url(payload: AnalyzeUrlRequest):
+async def analyze_url(
+    payload: AnalyzeUrlRequest,
+):
     file_url = payload.file_url
 
     if file_url.startswith("//"):
@@ -513,19 +703,15 @@ async def analyze_url(payload: AnalyzeUrlRequest):
         metrics = calculate_metrics(parsed)
 
     else:
-        parsed = {
-            "orders": [],
-            "closed_trades": [],
-            "mirror_law_trades": [],
-            "starting_capital": 0,
-            "ending_capital": 0,
-            "commissions_total": 0,
-            "period_return": None,
-        }
-
+        parsed = empty_parsed_response()
         metrics = {}
 
-    filename = file_url.split("/")[-1]
+    filename = (
+        file_url
+        .split("?")[0]
+        .rstrip("/")
+        .split("/")[-1]
+    )
 
     return build_full_analysis_response(
         broker=broker,
