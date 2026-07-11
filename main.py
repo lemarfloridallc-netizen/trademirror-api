@@ -94,9 +94,19 @@ def option_side(symbol: str):
 
 
 def parse_csv_rows(text: str):
+    """
+    Parses IBKR CSV exports.
+
+    IBKR sometimes wraps the real CSV record inside the first field and
+    appends semicolon metadata at the end of the line.
+
+    This function unwraps that format before returning the row.
+    """
+
     rows = []
 
     for raw_line in text.splitlines():
+
         line = clean_line(raw_line)
 
         if not line:
@@ -104,6 +114,20 @@ def parse_csv_rows(text: str):
 
         try:
             parsed = next(csv.reader([line]))
+
+            # Normal CSV
+            if len(parsed) > 1:
+                rows.append(parsed)
+                continue
+
+            # IBKR wrapped row
+            first = parsed[0]
+
+            if "," in first:
+                parsed = next(csv.reader([first]))
+                rows.append(parsed)
+                continue
+
             rows.append(parsed)
 
         except Exception:
