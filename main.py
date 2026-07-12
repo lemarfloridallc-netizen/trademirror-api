@@ -8,6 +8,7 @@ from datetime import datetime
 
 from identity.engine import build_trading_identity
 from identity.coach_context import build_coach_context
+from identity.coach_engine import ask_mirror_coach
 from identity.mirror_law import build_monthly_metrics
 from identity.mirror_law.trade_reconstructor import reconstruct_closed_trades
 
@@ -41,30 +42,12 @@ def health():
     return {"status": "ok"}
 
 @app.post("/coach")
-def coach_test(request: CoachRequest):
-    """
-    Temporary endpoint to validate MirrorCoach.
-    No AI model is called here.
-    """
+def coach(request: CoachRequest):
 
-    context = request.coach_context or {}
-
-    report = context.get("report", {})
-    identity = context.get("identity", {})
-    blueprint = context.get("blueprint", {})
-
-    return {
-        "status": "success",
-        "mode": "test",
-        "question_received": request.question,
-        "context_received": bool(context),
-        "identity_name": identity.get("name"),
-        "total_trades": report.get("total_trades"),
-        "win_rate": report.get("win_rate"),
-        "profit_factor": report.get("profit_factor"),
-        "blueprint_received": bool(blueprint),
-        "message": "MirrorCoach context received successfully."
-    }
+    return ask_mirror_coach(
+        question=request.question,
+        coach_context=request.coach_context,
+    )
 
 
 def clean_line(line: str) -> str:
