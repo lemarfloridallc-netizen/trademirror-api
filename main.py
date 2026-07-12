@@ -7,6 +7,7 @@ from collections import defaultdict
 from datetime import datetime
 
 from identity.engine import build_trading_identity
+from identity.coach_context import build_coach_context
 from identity.mirror_law import build_monthly_metrics
 from identity.mirror_law.trade_reconstructor import reconstruct_closed_trades
 
