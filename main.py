@@ -17,7 +17,10 @@ app = FastAPI(title="TradeMirror API")
 
 class AnalyzeUrlRequest(BaseModel):
     file_url: str
-
+   
+class CoachRequest(BaseModel):
+    question: str
+    coach_context: dict
 
 app.add_middleware(
     CORSMiddleware,
@@ -36,6 +39,32 @@ def root():
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+@app.post("/coach")
+def coach_test(request: CoachRequest):
+    """
+    Temporary endpoint to validate MirrorCoach.
+    No AI model is called here.
+    """
+
+    context = request.coach_context or {}
+
+    report = context.get("report", {})
+    identity = context.get("identity", {})
+    blueprint = context.get("blueprint", {})
+
+    return {
+        "status": "success",
+        "mode": "test",
+        "question_received": request.question,
+        "context_received": bool(context),
+        "identity_name": identity.get("name"),
+        "total_trades": report.get("total_trades"),
+        "win_rate": report.get("win_rate"),
+        "profit_factor": report.get("profit_factor"),
+        "blueprint_received": bool(blueprint),
+        "message": "MirrorCoach context received successfully."
+    }
 
 
 def clean_line(line: str) -> str:
