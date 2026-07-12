@@ -583,7 +583,7 @@ def build_full_analysis_response(
     - mirror_insight
     - evolution
 
-    Mirror Law is added as a separate root object.
+    Mirror Law and Coach Context are added as separate root objects.
     """
 
     closed_trades = parsed.get(
@@ -627,6 +627,15 @@ def build_full_analysis_response(
         else {}
     )
 
+    coach_context = (
+        build_coach_context(
+            metrics,
+            identity,
+        )
+        if metrics and identity
+        else {}
+    )
+
     mirror_law = build_mirror_law_analysis(
         parsed
     )
@@ -640,6 +649,7 @@ def build_full_analysis_response(
         "blueprint": blueprint,
         "mirror_insight": mirror_insight,
         "evolution": evolution,
+        "coach_context": coach_context,
         "mirror_law": mirror_law,
         "sample_orders": parsed.get(
             "orders",
@@ -650,7 +660,6 @@ def build_full_analysis_response(
             [],
         )[:5],
     }
-
 
 def empty_parsed_response():
     """
