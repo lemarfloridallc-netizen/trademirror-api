@@ -681,18 +681,19 @@ def build_full_analysis_response(
         else {}
     )
 
-    coach_context = (
-        build_coach_context(
-            metrics,
-            identity,
-        )
-        if metrics and identity
-        else {}
-    )
-
     mirror_law = build_mirror_law_analysis(
-        parsed
+    parsed
+)
+
+coach_context = (
+    build_coach_context(
+        metrics=metrics,
+        identity_payload=identity,
+        mirror_law=mirror_law,
     )
+    if metrics and identity
+    else {}
+)
 
     return {
         "status": "success",
