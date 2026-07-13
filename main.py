@@ -666,11 +666,11 @@ def build_full_analysis_response(
         "mirror_insight": mirror_insight,
         "evolution": evolution,
         "coach_context": coach_context,
-        "coach_context_json": json.dumps(
-            coach_context,
-            ensure_ascii=False,
-            default=str,
-        ),
+      "coach_context_json": "MTCTX|" + json.dumps(
+    coach_context,
+    ensure_ascii=False,
+    default=str,
+   ),
         "mirror_law": mirror_law,
         "sample_orders": parsed.get(
             "orders",
