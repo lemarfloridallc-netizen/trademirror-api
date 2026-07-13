@@ -24,7 +24,7 @@ class AnalyzeUrlRequest(BaseModel):
    
 class CoachRequest(BaseModel):
     question: str
-    coach_context: dict
+    coach_context: object
 
 app.add_middleware(
     CORSMiddleware,
@@ -46,10 +46,37 @@ def health():
 
 @app.post("/coach")
 def coach(request: CoachRequest):
+    context = request.coach_context
+
+    if isinstance(context, str):
+        context_text = context.strip()
+
+        if context_text.startswith("MTCTX|"):
+            context_text = context_text[len("MTCTX|"):]
+
+        try:
+            context = json.loads(context_text)
+        except json.JSONDecodeError:
+            return {
+                "status": "error",
+                "error_code": "invalid_coach_context",
+                "answer": (
+                    "MirrorCoach no pudo leer la información del reporte."
+                ),
+            }
+
+    if not isinstance(context, dict):
+        return {
+            "status": "error",
+            "error_code": "invalid_coach_context",
+            "answer": (
+                "MirrorCoach recibió un contexto de reporte inválido."
+            ),
+        }
 
     return ask_mirror_coach(
         question=request.question,
-        coach_context=request.coach_context,
+        coach_context=context,
     )
 
 
