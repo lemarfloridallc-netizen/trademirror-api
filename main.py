@@ -656,31 +656,31 @@ def build_full_analysis_response(
         parsed
     )
 
-return {
-    "status": "success",
-    "broker": broker,
-    "filename": filename,
-    "metrics": metrics,
-    "identity": identity,
-    "blueprint": blueprint,
-    "mirror_insight": mirror_insight,
-    "evolution": evolution,
-    "coach_context": coach_context,
-    "coach_context_json": json.dumps(
-        coach_context,
-        ensure_ascii=False,
-        default=str,
-    ),
-    "mirror_law": mirror_law,
-    "sample_orders": parsed.get(
-        "orders",
-        [],
-    )[:5],
-    "sample_closed_trades": parsed.get(
-        "closed_trades",
-        [],
-    )[:5],
-}
+    return {
+        "status": "success",
+        "broker": broker,
+        "filename": filename,
+        "metrics": metrics,
+        "identity": identity,
+        "blueprint": blueprint,
+        "mirror_insight": mirror_insight,
+        "evolution": evolution,
+        "coach_context": coach_context,
+        "coach_context_json": json.dumps(
+            coach_context,
+            ensure_ascii=False,
+            default=str,
+        ),
+        "mirror_law": mirror_law,
+        "sample_orders": parsed.get(
+            "orders",
+            [],
+        )[:5],
+        "sample_closed_trades": parsed.get(
+            "closed_trades",
+            [],
+        )[:5],
+    }
 
 def empty_parsed_response():
     """
