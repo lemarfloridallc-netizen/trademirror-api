@@ -43,6 +43,17 @@ def root():
 @app.get("/health")
 def health():
     return {"status": "ok"}
+    
+@app.get("/coach-test")
+def coach_test():
+    return ask_mirror_coach(
+        question="Responde únicamente: MirrorCoach está conectado correctamente.",
+        coach_context={
+            "test_mode": True,
+            "source": "Railway direct test",
+            "instruction": "Esta información se utiliza únicamente para verificar la conexión."
+        }
+    )
 
 @app.post("/coach")
 def coach(request: CoachRequest):
