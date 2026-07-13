@@ -656,7 +656,7 @@ def build_full_analysis_response(
         parsed
     )
 
-   return {
+return {
     "status": "success",
     "broker": broker,
     "filename": filename,
