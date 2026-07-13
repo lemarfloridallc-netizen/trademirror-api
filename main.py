@@ -682,17 +682,17 @@ def build_full_analysis_response(
     )
 
     mirror_law = build_mirror_law_analysis(
-    parsed
+        parsed
 )
 
-coach_context = (
-    build_coach_context(
-        metrics=metrics,
-        identity_payload=identity,
-        mirror_law=mirror_law,
+    coach_context = (
+        build_coach_context(
+            metrics=metrics,
+            identity_payload=identity,
+            mirror_law=mirror_law,
     )
-    if metrics and identity
-    else {}
+        if metrics and identity
+        else {}
 )
 
     return {
