@@ -719,9 +719,9 @@ def build_full_analysis_response(
     )
 
     if coach_context and mirror_knowledge_base:
-    coach_context[
-        "mirror_knowledge_base"
-    ] = mirror_knowledge_base
+        coach_context[
+            "mirror_knowledge_base"
+        ] = mirror_knowledge_base
 
     return {
         "status": "success",
