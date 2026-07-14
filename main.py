@@ -14,7 +14,7 @@ from identity.coach_context import build_coach_context
 from identity.coach_engine import ask_mirror_coach
 from identity.mirror_law import build_monthly_metrics
 from identity.mirror_law.trade_reconstructor import reconstruct_closed_trades
-
+from identity.trade_evidence import build_trade_evidence
 
 app = FastAPI(title="TradeMirror API")
 
@@ -537,11 +537,12 @@ def detect_broker(text: str):
 
 def build_mirror_law_analysis(parsed: dict):
     """
-    Builds the isolated Mirror Law data pipeline:
+    Builds the reconstructed trading-data pipeline:
 
     orders + closed_trades
         -> reconstructed dated trades
         -> monthly metrics
+        -> deterministic trade evidence
 
     This does not modify Identity or Blueprint.
     """
@@ -566,6 +567,10 @@ def build_mirror_law_analysis(parsed: dict):
         reconstructed_trades
     )
 
+    trade_evidence = build_trade_evidence(
+        reconstructed_trades
+    )
+
     return {
         "months": monthly_analysis.get(
             "months",
@@ -583,8 +588,15 @@ def build_mirror_law_analysis(parsed: dict):
             "ignored_trades",
             0,
         ),
+
+        "trade_evidence": trade_evidence,
+
+        # Historial reconstruido completo.
+        # Es la fuente detallada que MirrorCoach podrá consultar.
+        "reconstructed_trades": reconstructed_trades,
+
         "reconstruction": {
-            "reconstructed_trades": (
+            "reconstructed_trades_count": (
                 reconstruction.get(
                     "reconstructed_trades",
                     0,
@@ -615,11 +627,11 @@ def build_mirror_law_analysis(parsed: dict):
                 )
             ),
         },
+
         "sample_reconstructed_trades": (
             reconstructed_trades[:5]
         ),
     }
-
 
 def build_full_analysis_response(
     broker: str,
