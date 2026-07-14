@@ -15,6 +15,7 @@ from identity.coach_engine import ask_mirror_coach
 from identity.mirror_law import build_monthly_metrics
 from identity.mirror_law.trade_reconstructor import reconstruct_closed_trades
 from identity.trade_evidence import build_trade_evidence
+from identity.knowledge_builder import build_mirror_knowledge_base
 
 app = FastAPI(title="TradeMirror API")
 
@@ -697,15 +698,30 @@ def build_full_analysis_response(
         parsed
 )
 
+    mirror_knowledge_base = (
+        build_mirror_knowledge_base(
+            metrics=metrics,
+            identity_payload=identity,
+            mirror_law=mirror_law,
+    )
+    if metrics and identity
+    else {}
+)
+
     coach_context = (
         build_coach_context(
             metrics=metrics,
             identity_payload=identity,
             mirror_law=mirror_law,
     )
-        if metrics and identity
-        else {}
+    if metrics and identity
+    else {}
 )
+
+if coach_context and mirror_knowledge_base:
+    coach_context[
+        "mirror_knowledge_base"
+    ] = mirror_knowledge_base
 
     return {
         "status": "success",
@@ -722,6 +738,8 @@ def build_full_analysis_response(
     ensure_ascii=False,
     default=str,
    ),
+        "mirror_knowledge_base": mirror_knowledge_base,
+        
         "mirror_law": mirror_law,
         "sample_orders": parsed.get(
             "orders",
