@@ -696,7 +696,7 @@ def build_full_analysis_response(
 
     mirror_law = build_mirror_law_analysis(
         parsed
-)
+    )
 
     mirror_knowledge_base = (
         build_mirror_knowledge_base(
@@ -706,7 +706,7 @@ def build_full_analysis_response(
     )
     if metrics and identity
     else {}
-)
+    )
 
     coach_context = (
         build_coach_context(
@@ -716,9 +716,9 @@ def build_full_analysis_response(
     )
     if metrics and identity
     else {}
-)
+    )
 
-if coach_context and mirror_knowledge_base:
+    if coach_context and mirror_knowledge_base:
     coach_context[
         "mirror_knowledge_base"
     ] = mirror_knowledge_base
