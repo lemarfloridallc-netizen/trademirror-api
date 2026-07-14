@@ -1,7 +1,8 @@
 """
 MirrorCoach Evidence Selector
 
-Selecciona únicamente la evidencia relevante para cada tipo de pregunta.
+Selecciona la evidencia relevante para cada tipo de pregunta y garantiza
+que la Mirror Knowledge Base permanezca disponible para MirrorCoach.
 
 Este módulo:
 - No llama a OpenAI.
@@ -12,8 +13,11 @@ Este módulo:
 - No genera respuestas.
 - No altera el pipeline existente.
 
-Su única responsabilidad es reducir el contexto enviado al modelo
-sin perder evidencia necesaria.
+Su responsabilidad es:
+1. Normalizar el contexto recibido.
+2. Seleccionar las secciones relevantes por categoría.
+3. Conservar siempre la Mirror Knowledge Base cuando exista.
+4. Informar qué evidencia estaba disponible y qué faltaba.
 """
 
 from typing import Any, Dict, Iterable
@@ -133,12 +137,28 @@ CATEGORY_EVIDENCE_MAP = {
 }
 
 
+EMPTY_VALUES = (
+    None,
+    "",
+    {},
+    [],
+)
+
+
 def _safe_dict(value: Any) -> Dict[str, Any]:
     """
     Devuelve un diccionario válido.
     """
 
     return value if isinstance(value, dict) else {}
+
+
+def _is_present(value: Any) -> bool:
+    """
+    Determina si un valor contiene evidencia utilizable.
+    """
+
+    return value not in EMPTY_VALUES
 
 
 def _first_present(
@@ -155,12 +175,7 @@ def _first_present(
 
         value = source.get(key)
 
-        if value not in (
-            None,
-            "",
-            {},
-            [],
-        ):
+        if _is_present(value):
             return value
 
     return None
@@ -170,13 +185,17 @@ def _normalize_context(
     coach_context: Dict[str, Any],
 ) -> Dict[str, Any]:
     """
-    Normaliza nombres alternativos para que el selector pueda trabajar
-    con versiones presentes y futuras del Coach Context.
+    Normaliza nombres alternativos para trabajar con distintas versiones
+    del Coach Context sin perder compatibilidad.
     """
 
-    source = _safe_dict(coach_context)
+    source = _safe_dict(
+        coach_context
+    )
 
-    normalized = dict(source)
+    normalized = dict(
+        source
+    )
 
     aliases = {
         "report": (
@@ -214,6 +233,11 @@ def _normalize_context(
             "mirror_law",
             "mirror_law_analysis",
         ),
+        "mirror_knowledge_base": (
+            "mirror_knowledge_base",
+            "knowledge_base",
+            "mirror_memory",
+        ),
         "loss_analysis": (
             "loss_analysis",
             "losses",
@@ -246,7 +270,14 @@ def _normalize_context(
     }
 
     for canonical_key, candidate_keys in aliases.items():
-        if canonical_key in normalized:
+        if (
+            canonical_key in normalized
+            and _is_present(
+                normalized.get(
+                    canonical_key
+                )
+            )
+        ):
             continue
 
         alias_value = _first_present(
@@ -255,10 +286,14 @@ def _normalize_context(
         )
 
         if alias_value is not None:
-            normalized[canonical_key] = alias_value
+            normalized[
+                canonical_key
+            ] = alias_value
 
     metrics = _safe_dict(
-        normalized.get("metrics")
+        normalized.get(
+            "metrics"
+        )
     )
 
     for breakdown_key in (
@@ -266,22 +301,69 @@ def _normalize_context(
         "symbol_breakdown",
         "side_breakdown",
     ):
-        if breakdown_key in normalized:
+        if (
+            breakdown_key in normalized
+            and _is_present(
+                normalized.get(
+                    breakdown_key
+                )
+            )
+        ):
             continue
 
         breakdown_value = metrics.get(
             breakdown_key
         )
 
-        if breakdown_value not in (
-            None,
-            "",
-            {},
-            [],
+        if _is_present(
+            breakdown_value
         ):
             normalized[
                 breakdown_key
             ] = breakdown_value
+
+    knowledge_base = _safe_dict(
+        normalized.get(
+            "mirror_knowledge_base"
+        )
+    )
+
+    if knowledge_base:
+        nested_aliases = {
+            "trade_evidence": (
+                "trade_evidence",
+            ),
+            "trade_history": (
+                "trade_history",
+            ),
+            "monthly_analysis": (
+                "monthly_analysis",
+            ),
+            "reconstruction_quality": (
+                "reconstruction_quality",
+            ),
+        }
+
+        for canonical_key, candidate_keys in nested_aliases.items():
+            if (
+                canonical_key in normalized
+                and _is_present(
+                    normalized.get(
+                        canonical_key
+                    )
+                )
+            ):
+                continue
+
+            nested_value = _first_present(
+                source=knowledge_base,
+                keys=candidate_keys,
+            )
+
+            if nested_value is not None:
+                normalized[
+                    canonical_key
+                ] = nested_value
 
     return normalized
 
@@ -293,11 +375,16 @@ def select_evidence(
     """
     Selecciona la evidencia relevante para una categoría.
 
+    La Mirror Knowledge Base se conserva siempre que exista, porque es la
+    memoria completa y estructurada del trader.
+
     El resultado conserva:
     - la categoría de la pregunta;
-    - las secciones relevantes que sí existen;
+    - las secciones relevantes encontradas;
+    - la Mirror Knowledge Base completa;
     - una lista de secciones disponibles;
-    - una lista de secciones solicitadas pero ausentes.
+    - una lista de secciones solicitadas pero ausentes;
+    - metadatos de selección.
 
     Nunca inventa datos faltantes.
     """
@@ -323,11 +410,8 @@ def select_evidence(
             section_name
         )
 
-        if section_value in (
-            None,
-            "",
-            {},
-            [],
+        if not _is_present(
+            section_value
         ):
             missing_sections.append(
                 section_name
@@ -338,14 +422,24 @@ def select_evidence(
             section_name
         ] = section_value
 
+    knowledge_base = normalized_context.get(
+        "mirror_knowledge_base"
+    )
+
+    knowledge_base_used = _is_present(
+        knowledge_base
+    )
+
+    if knowledge_base_used:
+        selected_evidence[
+            "mirror_knowledge_base"
+        ] = knowledge_base
+
     available_sections = sorted(
         key
         for key, value in normalized_context.items()
-        if value not in (
-            None,
-            "",
-            {},
-            [],
+        if _is_present(
+            value
         )
     )
 
@@ -365,6 +459,12 @@ def select_evidence(
             ),
             "missing_section_count": len(
                 missing_sections
+            ),
+            "knowledge_base_available": (
+                knowledge_base_used
+            ),
+            "knowledge_base_included": (
+                knowledge_base_used
             ),
         },
     }
