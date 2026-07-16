@@ -856,13 +856,18 @@ async def coach_csv_test(
     """
     Prueba aislada:
 
-    1. Recibe el CSV crudo.
-    2. Lo sube directamente a OpenAI.
-    3. Solicita un análisis inicial a MirrorCoach.
-    4. Devuelve respuesta, tokens y tiempo de procesamiento.
+    1. Recibe el CSV.
+    2. Lee el contenido como texto.
+    3. Envía el texto directamente a MirrorCoach.
+    4. Devuelve respuesta, tokens y tiempo.
 
-    No utiliza TradingReport, Identity, Blueprint,
-    Mirror Law ni Coach Context.
+    No utiliza:
+    - OpenAI Files API
+    - TradingReport
+    - Identity
+    - Blueprint
+    - Mirror Law
+    - Coach Context
     """
 
     started_at = time.perf_counter()
@@ -882,7 +887,8 @@ async def coach_csv_test(
             "status": "error",
             "error_code": "missing_api_key",
             "answer": (
-                "La variable OPENAI_API_KEY no está configurada."
+                "La variable OPENAI_API_KEY "
+                "no está configurada."
             ),
         }
 
@@ -896,7 +902,8 @@ async def coach_csv_test(
             "status": "error",
             "error_code": "invalid_file_type",
             "answer": (
-                "Esta prueba acepta únicamente archivos CSV."
+                "Esta prueba acepta únicamente "
+                "archivos CSV."
             ),
         }
 
@@ -912,8 +919,8 @@ async def coach_csv_test(
                 ),
             }
 
-        # Límite provisional de seguridad para la prueba.
-        max_file_size = 15 * 1024 * 1024
+        # Límite provisional para la prueba.
+        max_file_size = 5 * 1024 * 1024
 
         if len(content) > max_file_size:
             return {
@@ -921,82 +928,79 @@ async def coach_csv_test(
                 "error_code": "file_too_large",
                 "file_size_bytes": len(content),
                 "answer": (
-                    "El archivo supera el límite provisional "
-                    "de 15 MB para esta prueba."
+                    "El archivo supera el límite "
+                    "provisional de 5 MB."
+                ),
+            }
+
+        csv_text = content.decode(
+            "utf-8-sig",
+            errors="ignore",
+        ).strip()
+
+        if not csv_text:
+            return {
+                "status": "error",
+                "error_code": "unreadable_csv",
+                "answer": (
+                    "El archivo no contiene texto "
+                    "que pueda analizarse."
                 ),
             }
 
         client = OpenAI(
             api_key=api_key,
-            timeout=120.0,
+            timeout=180.0,
             max_retries=2,
         )
 
-        # UploadFile.file ya es un objeto de archivo.
-        # Reiniciamos su posición porque el contenido fue leído.
-        await file.seek(0)
+        user_input = f"""
+MIRRORCOACH DIRECT CSV ANALYSIS
 
-        uploaded_file = client.files.create(
-            file=(
-                filename,
-                file.file,
-                "text/csv",
-            ),
-            purpose="user_data",
-        )
+FILENAME
 
-        initial_question = """
-Analiza directamente el archivo CSV adjunto.
+{filename}
 
-Este archivo contiene el historial de trading del usuario.
+TRADER QUESTION
 
-Tu primera respuesta debe funcionar como la apertura de MirrorCoach
-inmediatamente después de que el trader sube su archivo.
+Analiza directamente el historial de trading incluido abajo.
+
+Esta debe ser la primera respuesta que recibe el usuario
+inmediatamente después de subir su CSV a MirrorTrader.
 
 Investiga los datos antes de responder.
 
 Necesito:
 
-1. Una conclusión directa sobre lo más importante que revela el historial.
+1. La conclusión más importante que revela el historial.
 2. La evidencia numérica concreta que sostiene esa conclusión.
 3. La principal fortaleza demostrable.
 4. La principal fuga, debilidad o riesgo demostrable.
 5. Una sola acción práctica prioritaria.
 6. Las limitaciones reales del archivo o de la muestra.
 
-No inventes comportamientos psicológicos, reglas, estrategias ni causas
-que el CSV no pueda demostrar.
+REGLAS OBLIGATORIAS
 
-Distingue claramente entre:
+- Utiliza exclusivamente la información del CSV.
+- No inventes operaciones, fechas, resultados o métricas.
+- No inventes comportamientos psicológicos.
+- No atribuyas causas que los datos no puedan demostrar.
+- Diferencia hechos calculados de interpretaciones.
+- Indica claramente cualquier limitación del archivo.
+- Responde en español.
+- La respuesta debe ser directa y personalizada.
+- No des señales de compra o venta.
+- No predigas la dirección del mercado.
 
-- hechos calculados;
-- interpretaciones respaldadas;
-- información que no puede determinarse.
+RAW CSV CONTENT
 
-Responde en español.
-
-La respuesta debe sentirse como un espejo construido exclusivamente con
-el historial de este trader, no como una explicación genérica.
+{csv_text}
 """.strip()
 
         response = client.responses.create(
             model=model,
             instructions=MIRRORCOACH_SYSTEM_PROMPT,
-            input=[
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "input_file",
-                            "file_id": uploaded_file.id,
-                        },
-                        {
-                            "type": "input_text",
-                            "text": initial_question,
-                        },
-                    ],
-                }
-            ],
+            input=user_input,
             max_output_tokens=1500,
         )
 
@@ -1051,21 +1055,20 @@ el historial de este trader, no como una explicación genérica.
                 "error_code": "empty_model_response",
                 "model": model,
                 "filename": filename,
-                "openai_file_id": uploaded_file.id,
                 "processing_seconds": processing_seconds,
                 "answer": (
-                    "OpenAI procesó la solicitud, pero no "
-                    "devolvió una respuesta visible."
+                    "OpenAI procesó la solicitud, "
+                    "pero no devolvió una respuesta."
                 ),
             }
 
         return {
             "status": "success",
-            "test_type": "direct_csv_to_mirrorcoach",
+            "test_type": "raw_csv_text_to_mirrorcoach",
             "model": model,
             "filename": filename,
             "file_size_bytes": len(content),
-            "openai_file_id": uploaded_file.id,
+            "csv_characters": len(csv_text),
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
             "total_tokens": total_tokens,
@@ -1080,18 +1083,19 @@ el historial de este trader, no como una explicación genérica.
         )
 
         print(
-            "MirrorCoach direct CSV error:",
+            "MirrorCoach raw CSV error:",
             type(exc).__name__,
             str(exc),
         )
 
         return {
             "status": "error",
-            "error_code": "direct_csv_request_failed",
+            "error_code": "raw_csv_request_failed",
             "exception_type": type(exc).__name__,
+            "error_detail": str(exc),
             "processing_seconds": processing_seconds,
             "answer": (
-                "No se pudo completar la prueba directa "
-                "del CSV con MirrorCoach."
+                "No se pudo completar la prueba "
+                "directa del CSV con MirrorCoach."
             ),
         }
