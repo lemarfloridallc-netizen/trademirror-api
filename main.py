@@ -998,11 +998,14 @@ RAW CSV CONTENT
 """.strip()
 
         response = client.responses.create(
-            model=model,
-            instructions=MIRRORCOACH_SYSTEM_PROMPT,
-            input=user_input,
-            max_output_tokens=1500,
-        )
+    model=model,
+    instructions=MIRRORCOACH_SYSTEM_PROMPT,
+    input=user_input,
+    reasoning={
+        "effort": "low",
+    },
+    max_output_tokens=5000,
+)
 
         answer = str(
             response.output_text or ""
@@ -1050,17 +1053,36 @@ RAW CSV CONTENT
         )
 
         if not answer:
-            return {
-                "status": "error",
-                "error_code": "empty_model_response",
-                "model": model,
-                "filename": filename,
-                "processing_seconds": processing_seconds,
-                "answer": (
-                    "OpenAI procesó la solicitud, "
-                    "pero no devolvió una respuesta."
-                ),
-            }
+        incomplete_details = getattr(
+        response,
+        "incomplete_details",
+        None,
+    )
+
+    return {
+        "status": "error",
+        "error_code": "empty_model_response",
+        "model": model,
+        "filename": filename,
+        "response_status": getattr(
+            response,
+            "status",
+            None,
+        ),
+        "incomplete_details": (
+            str(incomplete_details)
+            if incomplete_details
+            else None
+        ),
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "total_tokens": total_tokens,
+        "processing_seconds": processing_seconds,
+        "answer": (
+            "OpenAI procesó la solicitud, "
+            "pero no devolvió texto visible."
+        ),
+    }
 
         return {
             "status": "success",
