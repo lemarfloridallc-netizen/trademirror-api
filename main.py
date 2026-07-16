@@ -3,15 +3,21 @@ from fastapi.middleware.cors import CORSMiddleware
 
 import csv
 import json
+import os
+import time
 import requests
 
 from pydantic import BaseModel
+from openai import OpenAI
 from collections import defaultdict
 from datetime import datetime
 
 from identity.engine import build_trading_identity
 from identity.coach_context import build_coach_context
-from identity.coach_engine import ask_mirror_coach
+from identity.coach_engine import (
+    ask_mirror_coach,
+    MIRRORCOACH_SYSTEM_PROMPT,
+)
 from identity.mirror_law import build_monthly_metrics
 from identity.mirror_law.trade_reconstructor import reconstruct_closed_trades
 from identity.trade_evidence import build_trade_evidence
@@ -842,3 +848,250 @@ async def analyze_url(
         parsed=parsed,
         metrics=metrics,
     )
+
+@app.post("/coach-csv-test")
+async def coach_csv_test(
+    file: UploadFile = File(...),
+):
+    """
+    Prueba aislada:
+
+    1. Recibe el CSV crudo.
+    2. Lo sube directamente a OpenAI.
+    3. Solicita un análisis inicial a MirrorCoach.
+    4. Devuelve respuesta, tokens y tiempo de procesamiento.
+
+    No utiliza TradingReport, Identity, Blueprint,
+    Mirror Law ni Coach Context.
+    """
+
+    started_at = time.perf_counter()
+
+    api_key = os.getenv(
+        "OPENAI_API_KEY",
+        "",
+    ).strip()
+
+    model = os.getenv(
+        "OPENAI_MODEL",
+        "gpt-5.5",
+    ).strip()
+
+    if not api_key:
+        return {
+            "status": "error",
+            "error_code": "missing_api_key",
+            "answer": (
+                "La variable OPENAI_API_KEY no está configurada."
+            ),
+        }
+
+    filename = (
+        file.filename
+        or "trading_history.csv"
+    )
+
+    if not filename.lower().endswith(".csv"):
+        return {
+            "status": "error",
+            "error_code": "invalid_file_type",
+            "answer": (
+                "Esta prueba acepta únicamente archivos CSV."
+            ),
+        }
+
+    try:
+        content = await file.read()
+
+        if not content:
+            return {
+                "status": "error",
+                "error_code": "empty_file",
+                "answer": (
+                    "El archivo CSV está vacío."
+                ),
+            }
+
+        # Límite provisional de seguridad para la prueba.
+        max_file_size = 15 * 1024 * 1024
+
+        if len(content) > max_file_size:
+            return {
+                "status": "error",
+                "error_code": "file_too_large",
+                "file_size_bytes": len(content),
+                "answer": (
+                    "El archivo supera el límite provisional "
+                    "de 15 MB para esta prueba."
+                ),
+            }
+
+        client = OpenAI(
+            api_key=api_key,
+            timeout=120.0,
+            max_retries=2,
+        )
+
+        # UploadFile.file ya es un objeto de archivo.
+        # Reiniciamos su posición porque el contenido fue leído.
+        await file.seek(0)
+
+        uploaded_file = client.files.create(
+            file=(
+                filename,
+                file.file,
+                "text/csv",
+            ),
+            purpose="user_data",
+        )
+
+        initial_question = """
+Analiza directamente el archivo CSV adjunto.
+
+Este archivo contiene el historial de trading del usuario.
+
+Tu primera respuesta debe funcionar como la apertura de MirrorCoach
+inmediatamente después de que el trader sube su archivo.
+
+Investiga los datos antes de responder.
+
+Necesito:
+
+1. Una conclusión directa sobre lo más importante que revela el historial.
+2. La evidencia numérica concreta que sostiene esa conclusión.
+3. La principal fortaleza demostrable.
+4. La principal fuga, debilidad o riesgo demostrable.
+5. Una sola acción práctica prioritaria.
+6. Las limitaciones reales del archivo o de la muestra.
+
+No inventes comportamientos psicológicos, reglas, estrategias ni causas
+que el CSV no pueda demostrar.
+
+Distingue claramente entre:
+
+- hechos calculados;
+- interpretaciones respaldadas;
+- información que no puede determinarse.
+
+Responde en español.
+
+La respuesta debe sentirse como un espejo construido exclusivamente con
+el historial de este trader, no como una explicación genérica.
+""".strip()
+
+        response = client.responses.create(
+            model=model,
+            instructions=MIRRORCOACH_SYSTEM_PROMPT,
+            input=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "input_file",
+                            "file_id": uploaded_file.id,
+                        },
+                        {
+                            "type": "input_text",
+                            "text": initial_question,
+                        },
+                    ],
+                }
+            ],
+            max_output_tokens=1500,
+        )
+
+        answer = str(
+            response.output_text or ""
+        ).strip()
+
+        usage = getattr(
+            response,
+            "usage",
+            None,
+        )
+
+        input_tokens = (
+            getattr(
+                usage,
+                "input_tokens",
+                0,
+            )
+            if usage
+            else 0
+        )
+
+        output_tokens = (
+            getattr(
+                usage,
+                "output_tokens",
+                0,
+            )
+            if usage
+            else 0
+        )
+
+        total_tokens = (
+            getattr(
+                usage,
+                "total_tokens",
+                input_tokens + output_tokens,
+            )
+            if usage
+            else input_tokens + output_tokens
+        )
+
+        processing_seconds = round(
+            time.perf_counter() - started_at,
+            3,
+        )
+
+        if not answer:
+            return {
+                "status": "error",
+                "error_code": "empty_model_response",
+                "model": model,
+                "filename": filename,
+                "openai_file_id": uploaded_file.id,
+                "processing_seconds": processing_seconds,
+                "answer": (
+                    "OpenAI procesó la solicitud, pero no "
+                    "devolvió una respuesta visible."
+                ),
+            }
+
+        return {
+            "status": "success",
+            "test_type": "direct_csv_to_mirrorcoach",
+            "model": model,
+            "filename": filename,
+            "file_size_bytes": len(content),
+            "openai_file_id": uploaded_file.id,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "total_tokens": total_tokens,
+            "processing_seconds": processing_seconds,
+            "answer": answer,
+        }
+
+    except Exception as exc:
+        processing_seconds = round(
+            time.perf_counter() - started_at,
+            3,
+        )
+
+        print(
+            "MirrorCoach direct CSV error:",
+            type(exc).__name__,
+            str(exc),
+        )
+
+        return {
+            "status": "error",
+            "error_code": "direct_csv_request_failed",
+            "exception_type": type(exc).__name__,
+            "processing_seconds": processing_seconds,
+            "answer": (
+                "No se pudo completar la prueba directa "
+                "del CSV con MirrorCoach."
+            ),
+        }
