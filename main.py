@@ -801,6 +801,229 @@ async def analyze(
     )
 
 
+def analyze_raw_csv_with_mirrorcoach(
+    csv_text: str,
+    filename: str,
+) -> dict:
+    """
+    Runs the validated raw-CSV MirrorCoach analysis.
+
+    This helper does not replace the existing report pipeline. It adds an
+    immediate MirrorCoach opening response while preserving all current
+    TradingReport, Identity, Blueprint, Evolution, and Mirror Law fields.
+    """
+
+    started_at = time.perf_counter()
+
+    api_key = os.getenv(
+        "OPENAI_API_KEY",
+        "",
+    ).strip()
+
+    model = os.getenv(
+        "OPENAI_MODEL",
+        "gpt-5.5",
+    ).strip()
+
+    if not api_key:
+        return {
+            "status": "error",
+            "error_code": "missing_api_key",
+            "answer": (
+                "La variable OPENAI_API_KEY "
+                "no está configurada."
+            ),
+        }
+
+    clean_csv_text = str(
+        csv_text or ""
+    ).strip()
+
+    if not clean_csv_text:
+        return {
+            "status": "error",
+            "error_code": "empty_csv_text",
+            "answer": (
+                "El archivo no contiene texto "
+                "que pueda analizarse."
+            ),
+        }
+
+    try:
+        client = OpenAI(
+            api_key=api_key,
+            timeout=180.0,
+            max_retries=2,
+        )
+
+        user_input = f"""
+MIRRORCOACH DIRECT CSV ANALYSIS
+
+FILENAME
+
+{filename}
+
+TRADER QUESTION
+
+Analiza directamente el historial de trading incluido abajo.
+
+Esta debe ser la primera respuesta que recibe el usuario
+inmediatamente después de subir su CSV a MirrorTrader.
+
+Investiga los datos antes de responder.
+
+Necesito:
+
+1. La conclusión más importante que revela el historial.
+2. La evidencia numérica concreta que sostiene esa conclusión.
+3. La principal fortaleza demostrable.
+4. La principal fuga, debilidad o riesgo demostrable.
+5. Una sola acción práctica prioritaria.
+6. Las limitaciones reales del archivo o de la muestra.
+
+REGLAS OBLIGATORIAS
+
+- Utiliza exclusivamente la información del CSV.
+- No inventes operaciones, fechas, resultados o métricas.
+- No inventes comportamientos psicológicos.
+- No atribuyas causas que los datos no puedan demostrar.
+- Diferencia hechos calculados de interpretaciones.
+- Indica claramente cualquier limitación del archivo.
+- Responde en español.
+- La respuesta debe ser directa y personalizada.
+- No des señales de compra o venta.
+- No predigas la dirección del mercado.
+
+RAW CSV CONTENT
+
+{clean_csv_text}
+""".strip()
+
+        response = client.responses.create(
+            model=model,
+            instructions=MIRRORCOACH_SYSTEM_PROMPT,
+            input=user_input,
+            reasoning={
+                "effort": "low",
+            },
+            max_output_tokens=5000,
+        )
+
+        answer = str(
+            response.output_text or ""
+        ).strip()
+
+        usage = getattr(
+            response,
+            "usage",
+            None,
+        )
+
+        input_tokens = (
+            getattr(
+                usage,
+                "input_tokens",
+                0,
+            )
+            if usage
+            else 0
+        )
+
+        output_tokens = (
+            getattr(
+                usage,
+                "output_tokens",
+                0,
+            )
+            if usage
+            else 0
+        )
+
+        total_tokens = (
+            getattr(
+                usage,
+                "total_tokens",
+                input_tokens + output_tokens,
+            )
+            if usage
+            else input_tokens + output_tokens
+        )
+
+        processing_seconds = round(
+            time.perf_counter() - started_at,
+            3,
+        )
+
+        if not answer:
+            incomplete_details = getattr(
+                response,
+                "incomplete_details",
+                None,
+            )
+
+            return {
+                "status": "error",
+                "error_code": "empty_model_response",
+                "model": model,
+                "filename": filename,
+                "response_status": getattr(
+                    response,
+                    "status",
+                    None,
+                ),
+                "incomplete_details": (
+                    str(incomplete_details)
+                    if incomplete_details
+                    else None
+                ),
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "total_tokens": total_tokens,
+                "processing_seconds": processing_seconds,
+                "answer": (
+                    "OpenAI procesó la solicitud, "
+                    "pero no devolvió texto visible."
+                ),
+            }
+
+        return {
+            "status": "success",
+            "analysis_type": "raw_csv_text_to_mirrorcoach",
+            "model": model,
+            "filename": filename,
+            "csv_characters": len(clean_csv_text),
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "total_tokens": total_tokens,
+            "processing_seconds": processing_seconds,
+            "answer": answer,
+        }
+
+    except Exception as exc:
+        processing_seconds = round(
+            time.perf_counter() - started_at,
+            3,
+        )
+
+        print(
+            "MirrorCoach analyze-url CSV error:",
+            type(exc).__name__,
+            str(exc),
+        )
+
+        return {
+            "status": "error",
+            "error_code": "raw_csv_request_failed",
+            "exception_type": type(exc).__name__,
+            "error_detail": str(exc),
+            "processing_seconds": processing_seconds,
+            "answer": (
+                "No se pudo completar el análisis "
+                "inicial de MirrorCoach."
+            ),
+        }
+
+
 @app.post("/analyze-url")
 async def analyze_url(
     payload: AnalyzeUrlRequest,
@@ -820,7 +1043,9 @@ async def analyze_url(
 
     response.raise_for_status()
 
-    text = response.content.decode(
+    content = response.content
+
+    text = content.decode(
         "utf-8-sig",
         errors="ignore",
     )
@@ -842,12 +1067,34 @@ async def analyze_url(
         .split("/")[-1]
     )
 
-    return build_full_analysis_response(
+    full_analysis = build_full_analysis_response(
         broker=broker,
         filename=filename,
         parsed=parsed,
         metrics=metrics,
     )
+
+    mirrorcoach_initial = analyze_raw_csv_with_mirrorcoach(
+        csv_text=text,
+        filename=filename,
+    )
+
+    full_analysis["mirrorcoach_initial"] = mirrorcoach_initial
+    full_analysis["mirrorcoach_initial_answer"] = (
+        mirrorcoach_initial.get(
+            "answer",
+            "",
+        )
+    )
+    full_analysis["mirrorcoach_initial_status"] = (
+        mirrorcoach_initial.get(
+            "status",
+            "error",
+        )
+    )
+
+    return full_analysis
+
 
 @app.post("/coach-csv-test")
 async def coach_csv_test(
