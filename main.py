@@ -1079,7 +1079,7 @@ async def analyze_url(
         filename=filename,
     )
 
-    full_analysis["mirrorcoach_initial"] = mirrorcoach_initial
+   
     full_analysis["mirrorcoach_initial_answer"] = (
         mirrorcoach_initial.get(
             "answer",
