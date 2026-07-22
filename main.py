@@ -93,10 +93,10 @@ def coach(request: CoachRequest):
             ),
         }
 
-       if request.csv_file_url:
-        csv_response = requests.get(request.csv_file_url, timeout=30)
-        csv_response.raise_for_status()
-        context["raw_csv"] = csv_response.text
+   if request.csv_file_url:
+       csv_response = requests.get(request.csv_file_url, timeout=30)
+       csv_response.raise_for_status()
+       context["raw_csv"] = csv_response.text
 
     return ask_mirror_coach(
         question=request.question,
