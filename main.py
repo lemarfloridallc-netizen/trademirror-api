@@ -93,7 +93,7 @@ def coach(request: CoachRequest):
             ),
         }
 
-    if request.csv_file_url:
+    if request.csv_file_url and request.csv_file_url.lower() not in ("null", "undefined"):
         csv_response = requests.get(request.csv_file_url, timeout=30)
         csv_response.raise_for_status()
         context["raw_csv"] = csv_response.text
