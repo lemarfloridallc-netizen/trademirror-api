@@ -32,6 +32,7 @@ class AnalyzeUrlRequest(BaseModel):
 class CoachRequest(BaseModel):
     question: str
     coach_context: object
+    csv_file_url: str = ""
 
 app.add_middleware(
     CORSMiddleware,
