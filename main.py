@@ -28,7 +28,12 @@ app = FastAPI(title="TradeMirror API")
 
 class AnalyzeUrlRequest(BaseModel):
     file_url: str
-   
+
+
+class CoachCsvUrlRequest(BaseModel):
+    csv_file_url: str
+
+
 class CoachRequest(BaseModel):
     question: str
     coach_context: object
@@ -1027,6 +1032,136 @@ RAW CSV CONTENT
                 "No se pudo completar el análisis "
                 "inicial de MirrorCoach."
             ),
+        }
+
+
+@app.post("/coach-csv-url")
+async def coach_csv_url(
+    payload: CoachCsvUrlRequest,
+):
+    """
+    Minimal recovery circuit:
+
+    Bubble file URL -> CSV text -> OpenAI -> initial MirrorCoach answer.
+
+    This endpoint does not use TradingReport, Identity, Blueprint,
+    Mirror Law, or Coach Context.
+    """
+
+    file_url = str(
+        payload.csv_file_url or ""
+    ).strip()
+
+    if not file_url or file_url.lower() in (
+        "null",
+        "undefined",
+    ):
+        return {
+            "success": False,
+            "status": "error",
+            "error_code": "missing_csv_file_url",
+            "initial_answer": "",
+        }
+
+    if file_url.startswith("//"):
+        file_url = "https:" + file_url
+
+    if not file_url.startswith(
+        ("http://", "https://")
+    ):
+        return {
+            "success": False,
+            "status": "error",
+            "error_code": "invalid_csv_file_url",
+            "initial_answer": "",
+        }
+
+    try:
+        csv_response = requests.get(
+            file_url,
+            headers={
+                "User-Agent": "Mozilla/5.0",
+            },
+            timeout=30,
+        )
+        csv_response.raise_for_status()
+
+        if not csv_response.content:
+            return {
+                "success": False,
+                "status": "error",
+                "error_code": "empty_csv_file",
+                "initial_answer": "",
+            }
+
+        max_file_size = 5 * 1024 * 1024
+
+        if len(csv_response.content) > max_file_size:
+            return {
+                "success": False,
+                "status": "error",
+                "error_code": "file_too_large",
+                "file_size_bytes": len(
+                    csv_response.content
+                ),
+                "initial_answer": "",
+            }
+
+        csv_text = csv_response.content.decode(
+            "utf-8-sig",
+            errors="ignore",
+        ).strip()
+
+        filename = (
+            file_url
+            .split("?")[0]
+            .rstrip("/")
+            .split("/")[-1]
+            or "trading_history.csv"
+        )
+
+        analysis = analyze_raw_csv_with_mirrorcoach(
+            csv_text=csv_text,
+            filename=filename,
+        )
+
+        if analysis.get("status") != "success":
+            return {
+                "success": False,
+                "status": "error",
+                "error_code": analysis.get(
+                    "error_code",
+                    "mirrorcoach_analysis_failed",
+                ),
+                "filename": filename,
+                "initial_answer": analysis.get(
+                    "answer",
+                    "",
+                ),
+            }
+
+        return {
+            "success": True,
+            "status": "success",
+            "filename": filename,
+            "initial_answer": analysis.get(
+                "answer",
+                "",
+            ),
+        }
+
+    except requests.RequestException as exc:
+        print(
+            "MirrorCoach CSV URL download error:",
+            type(exc).__name__,
+            str(exc),
+        )
+
+        return {
+            "success": False,
+            "status": "error",
+            "error_code": "csv_download_failed",
+            "initial_answer": "",
         }
 
 
