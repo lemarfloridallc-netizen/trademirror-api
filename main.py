@@ -34,6 +34,11 @@ class CoachCsvUrlRequest(BaseModel):
     csv_file_url: str
 
 
+class CoachCsvQuestionRequest(BaseModel):
+    csv_file_url: str
+    question: str
+
+
 class CoachRequest(BaseModel):
     question: str
     coach_context: object
@@ -1033,6 +1038,283 @@ RAW CSV CONTENT
                 "inicial de MirrorCoach."
             ),
         }
+
+
+def answer_csv_question_with_mirrorcoach(
+    csv_text: str,
+    filename: str,
+    question: str,
+) -> dict:
+    """
+    Answers one follow-up question using only the uploaded CSV.
+
+    This helper is independent from TradingReport and Coach Context.
+    """
+
+    started_at = time.perf_counter()
+
+    api_key = os.getenv(
+        "OPENAI_API_KEY",
+        "",
+    ).strip()
+
+    model = os.getenv(
+        "OPENAI_MODEL",
+        "gpt-5.5",
+    ).strip()
+
+    clean_csv_text = str(
+        csv_text or ""
+    ).strip()
+
+    clean_question = str(
+        question or ""
+    ).strip()
+
+    if not api_key:
+        return {
+            "status": "error",
+            "error_code": "missing_api_key",
+            "answer": (
+                "La variable OPENAI_API_KEY "
+                "no está configurada."
+            ),
+        }
+
+    if not clean_csv_text:
+        return {
+            "status": "error",
+            "error_code": "empty_csv_text",
+            "answer": (
+                "El archivo no contiene texto "
+                "que pueda analizarse."
+            ),
+        }
+
+    if not clean_question:
+        return {
+            "status": "error",
+            "error_code": "missing_question",
+            "answer": (
+                "Escribe una pregunta para MirrorCoach."
+            ),
+        }
+
+    try:
+        client = OpenAI(
+            api_key=api_key,
+            timeout=180.0,
+            max_retries=2,
+        )
+
+        user_input = f"""
+MIRRORCOACH DIRECT CSV QUESTION
+
+FILENAME
+
+{filename}
+
+TRADER QUESTION
+
+{clean_question}
+
+INSTRUCTIONS
+
+- Answer the trader's question using only the CSV below.
+- Investigate and calculate from the available rows before answering.
+- Use concrete numbers, dates, symbols, and operations when supported.
+- Do not invent missing facts, trades, metrics, or psychological causes.
+- Clearly distinguish calculated facts from interpretation.
+- State any limitation that prevents a reliable answer.
+- Answer in the same language used by the trader.
+- Be direct, personalized, and concise.
+- Do not give buy or sell signals.
+- Do not predict market direction.
+
+RAW CSV CONTENT
+
+{clean_csv_text}
+""".strip()
+
+        response = client.responses.create(
+            model=model,
+            instructions=MIRRORCOACH_SYSTEM_PROMPT,
+            input=user_input,
+            reasoning={
+                "effort": "low",
+            },
+            max_output_tokens=3000,
+        )
+
+        answer = str(
+            response.output_text or ""
+        ).strip()
+
+        processing_seconds = round(
+            time.perf_counter() - started_at,
+            3,
+        )
+
+        if not answer:
+            return {
+                "status": "error",
+                "error_code": "empty_model_response",
+                "filename": filename,
+                "processing_seconds": processing_seconds,
+                "answer": (
+                    "OpenAI procesó la pregunta, "
+                    "pero no devolvió texto visible."
+                ),
+            }
+
+        return {
+            "status": "success",
+            "analysis_type": "raw_csv_question_to_mirrorcoach",
+            "model": model,
+            "filename": filename,
+            "csv_characters": len(clean_csv_text),
+            "processing_seconds": processing_seconds,
+            "answer": answer,
+        }
+
+    except Exception as exc:
+        processing_seconds = round(
+            time.perf_counter() - started_at,
+            3,
+        )
+
+        print(
+            "MirrorCoach CSV question error:",
+            type(exc).__name__,
+            str(exc),
+        )
+
+        return {
+            "status": "error",
+            "error_code": "csv_question_request_failed",
+            "exception_type": type(exc).__name__,
+            "error_detail": str(exc),
+            "processing_seconds": processing_seconds,
+            "answer": (
+                "No se pudo completar la respuesta "
+                "de MirrorCoach."
+            ),
+        }
+
+
+@app.post("/coach-csv-question")
+async def coach_csv_question(
+    payload: CoachCsvQuestionRequest,
+):
+    """
+    CSV URL + trader question -> answer based only on that CSV.
+    """
+
+    file_url = str(
+        payload.csv_file_url or ""
+    ).strip()
+
+    question = str(
+        payload.question or ""
+    ).strip()
+
+    if not file_url or file_url.lower() in (
+        "null",
+        "undefined",
+    ):
+        return {
+            "success": False,
+            "status": "error",
+            "error_code": "missing_csv_file_url",
+            "answer": "",
+        }
+
+    if not question:
+        return {
+            "success": False,
+            "status": "error",
+            "error_code": "missing_question",
+            "answer": "",
+        }
+
+    if file_url.startswith("//"):
+        file_url = "https:" + file_url
+
+    if not file_url.startswith(
+        ("http://", "https://")
+    ):
+        return {
+            "success": False,
+            "status": "error",
+            "error_code": "invalid_csv_file_url",
+            "answer": "",
+        }
+
+    try:
+        csv_response = requests.get(
+            file_url,
+            headers={
+                "User-Agent": "Mozilla/5.0",
+            },
+            timeout=30,
+        )
+        csv_response.raise_for_status()
+    except requests.RequestException as exc:
+        print(
+            "MirrorCoach CSV question download error:",
+            type(exc).__name__,
+            str(exc),
+        )
+
+        return {
+            "success": False,
+            "status": "error",
+            "error_code": "csv_download_failed",
+            "error_detail": str(exc),
+            "answer": "",
+        }
+
+    csv_text = csv_response.content.decode(
+        "utf-8-sig",
+        errors="ignore",
+    ).strip()
+
+    if not csv_text:
+        return {
+            "success": False,
+            "status": "error",
+            "error_code": "empty_csv_file",
+            "answer": "",
+        }
+
+    filename = (
+        file_url.split("?")[0]
+        .rstrip("/")
+        .split("/")[-1]
+        or "uploaded_file.csv"
+    )
+
+    result = answer_csv_question_with_mirrorcoach(
+        csv_text=csv_text,
+        filename=filename,
+        question=question,
+    )
+
+    if result.get("status") != "success":
+        return {
+            "success": False,
+            **result,
+        }
+
+    return {
+        "success": True,
+        "status": "success",
+        "filename": filename,
+        "answer": result.get(
+            "answer",
+            "",
+        ),
+    }
 
 
 @app.post("/coach-csv-url")
